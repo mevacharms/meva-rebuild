@@ -9,7 +9,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { httpsCallable, httpsCallableFromURL } from "firebase/functions";
+import { httpsCallable } from "firebase/functions";
 import { auth, db, functions, googleProvider } from "../firebase";
 
 const KIBO_IMAGE_URL =
@@ -114,14 +114,7 @@ export default function MevaIdPage() {
     () => httpsCallable(functions, "syncUserProfile"),
     []
   );
-  const claimMeva = useMemo(
-    () =>
-      httpsCallableFromURL(
-        functions,
-        "https://us-central1-meva-clean.cloudfunctions.net/claimMeva"
-      ),
-    []
-  );
+  const claimMeva = useMemo(() => httpsCallable(functions, "claimMeva"), []);
   const unclaimMeva = useMemo(() => httpsCallable(functions, "unclaimMeva"), []);
   const logMevaInteraction = useMemo(
     () => httpsCallable(functions, "logMevaInteraction"),
@@ -736,11 +729,9 @@ export default function MevaIdPage() {
     );
   }
 
-  const primaryButtonLabel = viewerState.isOwner
-    ? "Unclaim Meva"
-    : viewerState.canClaim
-    ? "Claim Meva"
-    : "Feed Meva";
+  const primaryButtonLabel = viewerState.isClaimed
+  ? "Unclaim Meva"
+  : "Claim Meva";
 
   return (
     <>
