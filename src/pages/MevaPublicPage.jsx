@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  GoogleAuthProvider,
   getRedirectResult,
   onAuthStateChanged,
   signInWithPopup,
@@ -95,9 +94,11 @@ export default function MevaPublicPage() {
   const showInputError =
     touched && cleanedEnteredId.length > 0 && !isValidEnteredId;
 
-  const getMevaViewerState = httpsCallable(functions, "getMevaViewerState");
-  const claimMeva = httpsCallable(functions, "claimMeva");
-  const unclaimMeva = httpsCallable(functions, "unclaimMeva");
+    const getMevaViewerState = httpsCallable(functions, "getMevaViewerState");
+    const syncUserProfile = httpsCallable(functions, "syncUserProfile");
+    const claimMeva = httpsCallable(functions, "claimMeva");
+    const unclaimMeva = httpsCallable(functions, "unclaimMeva");
+    const logMevaInteraction = httpsCallable(functions, "logMevaInteraction");
 
   useEffect(() => {
     let mounted = true;
@@ -114,10 +115,19 @@ export default function MevaPublicPage() {
 
     handleRedirect();
 
-    const unsub = onAuthStateChanged(auth, (nextUser) => {
+    const unsub = onAuthStateChanged(auth, async (nextUser) => {
       if (!mounted) return;
+    
       setUser(nextUser || null);
       setAuthReady(true);
+    
+      if (nextUser) {
+        try {
+          await syncUserProfile();
+        } catch (err) {
+          console.error("User sync failed:", err);
+        }
+      }
     });
 
     return () => {
@@ -248,6 +258,13 @@ export default function MevaPublicPage() {
   ]);
 
   useEffect(() => {
+    if (isRootMPage || loading || notFound) return;
+    if (!isTestMeva && !isValidRealId) return;
+
+    trackInteraction("page_view");
+  }, [isRootMPage, loading, notFound, isTestMeva, isValidRealId, mevaId]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function resumePendingAction() {
@@ -360,6 +377,72 @@ export default function MevaPublicPage() {
       handleOpenEnteredMeva();
     }
   };
+  
+  const getClientContext = async () => {
+    const base = {
+      location: {
+        latitude: null,
+        longitude: null,
+        accuracy: null,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+      },
+      device: {
+        userAgent: navigator.userAgent || null,
+        language: navigator.language || null,
+        platform: navigator.platform || null,
+        screen: `${window.innerWidth}x${window.innerHeight}`,
+      },
+      metadata: {
+        source: "meva_public_page",
+        referrer: document.referrer || null,
+      },
+    };
+  
+    if (!navigator.geolocation) {
+      return base;
+    }
+  
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            ...base,
+            location: {
+              ...base.location,
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy,
+            },
+          });
+        },
+        () => resolve(base),
+        {
+          enableHighAccuracy: false,
+          timeout: 2500,
+          maximumAge: 300000,
+        }
+      );
+    });
+  };
+  
+  const trackInteraction = async (eventType, extraMetadata = {}) => {
+    try {
+      const context = await getClientContext();
+  
+      await logMevaInteraction({
+        mevaId,
+        eventType,
+        location: context.location,
+        device: context.device,
+        metadata: {
+          ...context.metadata,
+          ...extraMetadata,
+        },
+      });
+    } catch (err) {
+      console.error(`Failed to track ${eventType}:`, err);
+    }
+  };
 
   const refreshCurrentMeva = async () => {
     if (!mevaId || isRootMPage || notFound) return;
@@ -409,8 +492,6 @@ export default function MevaPublicPage() {
 
         setAuthMessage("Google sign-in failed. Please try again.");
         return;
-
-        setAuthMessage("Google sign-in failed. Please try again.");
       }
     }
   };
@@ -420,6 +501,7 @@ export default function MevaPublicPage() {
       setActionLoading(true);
       setActionMessage("");
       setAuthMessage("");
+      await trackInteraction("claim_click");
 
       if (!user) {
         await beginGoogleSignIn("claim");
@@ -442,6 +524,7 @@ export default function MevaPublicPage() {
       setActionLoading(true);
       setActionMessage("");
       setAuthMessage("");
+      await trackInteraction("unclaim_click");
 
       if (!user) {
         await beginGoogleSignIn("unclaim");
@@ -714,7 +797,11 @@ export default function MevaPublicPage() {
               src={imageUrl}
               alt={displayName}
               draggable="false"
-              className="mt-16 h-[150px] w-auto select-none object-contain"
+              onClick={async () => {
+                await trackInteraction("tap");
+                setActionMessage("Fed.");
+              }}
+              className="mt-16 h-[150px] w-auto select-none object-contain cursor-pointer"
               style={{ animation: "mevaFloat 3.6s ease-in-out infinite" }}
             />
           </div>
@@ -753,13 +840,19 @@ export default function MevaPublicPage() {
         ) : null}
 
         <div className="mt-6 grid grid-cols-1 gap-3">
-          <button
+        <button
             type="button"
-            onClick={viewerState.isOwner ? handleUnclaim : handleClaim}
-            disabled={
-              actionLoading ||
-              (!viewerState.isOwner && !viewerState.canClaim && viewerState.isClaimed)
+            onClick={
+              viewerState.isOwner
+                ? handleUnclaim
+                : viewerState.canClaim
+                ? handleClaim
+                : async () => {
+                    await trackInteraction("feed");
+                    setActionMessage("Fed.");
+                  }
             }
+            disabled={actionLoading}
             className="h-[58px] w-full rounded-[20px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[16px] font-extrabold text-white transition duration-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {actionLoading ? "Please wait..." : claimButtonLabel}

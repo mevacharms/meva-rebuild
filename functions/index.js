@@ -16,6 +16,45 @@ function assertValidMevaId(mevaId) {
   }
 }
 
+function normalizeEventType(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function sanitizeText(value, maxLength = 200) {
+  if (!value) return null;
+  return String(value).trim().slice(0, maxLength);
+}
+
+function roundCoord(value) {
+  if (typeof value !== "number" || Number.isNaN(value)) return null;
+  return Math.round(value * 100) / 100;
+}
+
+async function createEvent({
+  eventType,
+  mevaId,
+  actorUid = null,
+  actorEmail = null,
+  isAuthenticated = false,
+  metadata = {},
+  location = null,
+  device = {},
+}) {
+  const eventRef = db.collection("mevaEvents").doc();
+
+  await eventRef.set({
+    eventType,
+    mevaId,
+    actorUid,
+    actorEmail,
+    isAuthenticated,
+    metadata,
+    location,
+    device,
+    timestamp: FieldValue.serverTimestamp(),
+  });
+}
+
 exports.getMevaViewerState = onCall(async (request) => {
   const mevaId = normalizeMevaId(request.data?.mevaId);
   assertValidMevaId(mevaId);
@@ -43,6 +82,31 @@ exports.getMevaViewerState = onCall(async (request) => {
     canClaim: !isClaimed,
     canUnclaim: isOwner,
   };
+});
+
+exports.syncUserProfile = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must sign in first.");
+  }
+
+  const userRef = db.collection("users").doc(request.auth.uid);
+  const userSnap = await userRef.get();
+  const now = FieldValue.serverTimestamp();
+
+  await userRef.set(
+    {
+      uid: request.auth.uid,
+      email: request.auth.token.email || null,
+      displayName: request.auth.token.name || null,
+      photoURL: request.auth.token.picture || null,
+      createdAt: userSnap.exists ? userSnap.data().createdAt || now : now,
+      updatedAt: now,
+      lastSignInAt: now,
+    },
+    { merge: true }
+  );
+
+  return { success: true };
 });
 
 exports.claimMeva = onCall(async (request) => {
@@ -104,20 +168,20 @@ exports.claimMeva = onCall(async (request) => {
         email: request.auth.token.email || null,
         displayName: request.auth.token.name || null,
         photoURL: request.auth.token.picture || null,
-        updatedAt: now,
         createdAt: userSnap.exists ? userSnap.data().createdAt || now : now,
+        updatedAt: now,
+        lastSignInAt: now,
       },
       { merge: true }
     );
+  });
 
-    const eventRef = db.collection("mevaEvents").doc();
-    tx.set(eventRef, {
-      eventType: "claim",
-      mevaId,
-      actorUid: request.auth.uid,
-      actorEmail: request.auth.token.email || null,
-      timestamp: now,
-    });
+  await createEvent({
+    eventType: "claim",
+    mevaId,
+    actorUid: request.auth.uid,
+    actorEmail: request.auth.token.email || null,
+    isAuthenticated: true,
   });
 
   return {
@@ -172,19 +236,157 @@ exports.unclaimMeva = onCall(async (request) => {
       },
       { merge: true }
     );
+  });
 
-    const eventRef = db.collection("mevaEvents").doc();
-    tx.set(eventRef, {
-      eventType: "unclaim",
-      mevaId,
-      actorUid: request.auth.uid,
-      actorEmail: request.auth.token.email || null,
-      timestamp: now,
-    });
+  await createEvent({
+    eventType: "unclaim",
+    mevaId,
+    actorUid: request.auth.uid,
+    actorEmail: request.auth.token.email || null,
+    isAuthenticated: true,
   });
 
   return {
     success: true,
     mevaId,
+  };
+});
+
+exports.logMevaInteraction = onCall(async (request) => {
+  const mevaId = normalizeMevaId(request.data?.mevaId);
+  const eventType = normalizeEventType(request.data?.eventType);
+
+  assertValidMevaId(mevaId);
+
+  const allowedEventTypes = new Set([
+    "page_view",
+    "tap",
+    "feed",
+    "hold_start",
+    "hold_end",
+    "drag_start",
+    "drag_end",
+    "menu_open",
+    "claim_click",
+    "unclaim_click",
+  ]);
+
+  if (!allowedEventTypes.has(eventType)) {
+    throw new HttpsError("invalid-argument", "Invalid event type.");
+  }
+
+  const mevaRef = db.collection("mevas").doc(mevaId);
+  const claimRef = db.collection("mevaClaims").doc(mevaId);
+
+  const [mevaSnap, claimSnap] = await Promise.all([mevaRef.get(), claimRef.get()]);
+
+  if (!mevaSnap.exists) {
+    throw new HttpsError("not-found", "This Meva does not exist.");
+  }
+
+  const isOwner =
+    !!request.auth &&
+    claimSnap.exists &&
+    claimSnap.data()?.ownerUid === request.auth.uid;
+
+  const locationPayload = request.data?.location || {};
+  const devicePayload = request.data?.device || {};
+  const metadataPayload = request.data?.metadata || {};
+
+  const safeLocation = {
+    latitude: roundCoord(locationPayload.latitude),
+    longitude: roundCoord(locationPayload.longitude),
+    accuracy: typeof locationPayload.accuracy === "number"
+      ? Math.round(locationPayload.accuracy)
+      : null,
+    city: sanitizeText(locationPayload.city, 80),
+    region: sanitizeText(locationPayload.region, 80),
+    country: sanitizeText(locationPayload.country, 80),
+    timezone: sanitizeText(locationPayload.timezone, 80),
+  };
+
+  const safeDevice = {
+    userAgent: sanitizeText(devicePayload.userAgent, 300),
+    language: sanitizeText(devicePayload.language, 40),
+    platform: sanitizeText(devicePayload.platform, 80),
+    screen: sanitizeText(devicePayload.screen, 40),
+  };
+
+  const safeMetadata = {
+    source: sanitizeText(metadataPayload.source, 80),
+    referrer: sanitizeText(metadataPayload.referrer, 300),
+    note: sanitizeText(metadataPayload.note, 200),
+  };
+
+  const counterUpdates = {
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  if (eventType === "page_view") {
+    counterUpdates.tapCount = FieldValue.increment(1);
+  }
+
+  if (eventType === "tap" || eventType === "feed") {
+    if (isOwner) {
+      counterUpdates.ownerTapCount = FieldValue.increment(1);
+    } else {
+      counterUpdates.visitorTapCount = FieldValue.increment(1);
+    }
+  }
+
+  await mevaRef.set(counterUpdates, { merge: true });
+
+  await createEvent({
+    eventType,
+    mevaId,
+    actorUid: request.auth?.uid || null,
+    actorEmail: request.auth?.token?.email || null,
+    isAuthenticated: !!request.auth,
+    metadata: {
+      ...safeMetadata,
+      isOwner,
+    },
+    location: safeLocation,
+    device: safeDevice,
+  });
+
+  return {
+    success: true,
+    isOwner,
+  };
+});
+
+exports.getMevaAnalyticsSummary = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must sign in first.");
+  }
+
+  const mevaId = normalizeMevaId(request.data?.mevaId);
+  assertValidMevaId(mevaId);
+
+  const claimRef = db.collection("mevaClaims").doc(mevaId);
+  const mevaRef = db.collection("mevas").doc(mevaId);
+
+  const [claimSnap, mevaSnap] = await Promise.all([claimRef.get(), mevaRef.get()]);
+
+  if (!mevaSnap.exists) {
+    throw new HttpsError("not-found", "This Meva does not exist.");
+  }
+
+  if (!claimSnap.exists || claimSnap.data()?.ownerUid !== request.auth.uid) {
+    throw new HttpsError(
+      "permission-denied",
+      "Only the owner can view analytics for this Meva."
+    );
+  }
+
+  const mevaData = mevaSnap.data();
+
+  return {
+    mevaId,
+    tapCount: mevaData?.tapCount || 0,
+    ownerTapCount: mevaData?.ownerTapCount || 0,
+    visitorTapCount: mevaData?.visitorTapCount || 0,
+    isClaimed: !!mevaData?.isClaimed,
   };
 });
