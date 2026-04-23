@@ -6,21 +6,15 @@ const KIBO_IMAGE_URL =
 const MEVA_LOGO_URL =
   "https://firebasestorage.googleapis.com/v0/b/meva-clean.firebasestorage.app/o/brand%2FLogo.png?alt=media&token=dc0fef03-4c72-4a08-967e-0ffa9b55c39a";
 
-const ALLOWED_MEVA_IDS = new Set(["TEST", "EDALINET"]);
-
 export default function MevaHubPage() {
   const [enteredId, setEnteredId] = useState("");
-  const [touched, setTouched] = useState(false);
 
   const cleanedEnteredId = useMemo(
     () => enteredId.trim().toUpperCase(),
     [enteredId]
   );
 
-  const isValidEnteredId = ALLOWED_MEVA_IDS.has(cleanedEnteredId);
-
-  const showInputError =
-    touched && cleanedEnteredId.length > 0 && !isValidEnteredId;
+  const hasAnyInput = cleanedEnteredId.length > 0;
 
   const handleEnteredIdChange = (e) => {
     const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -28,10 +22,7 @@ export default function MevaHubPage() {
   };
 
   const handleOpenEnteredMeva = () => {
-    setTouched(true);
-
-    if (!isValidEnteredId) return;
-
+    if (!hasAnyInput) return;
     window.location.href = `/m/${cleanedEnteredId}`;
   };
 
@@ -109,35 +100,29 @@ export default function MevaHubPage() {
                   type="text"
                   value={enteredId}
                   onChange={handleEnteredIdChange}
-                  onBlur={() => setTouched(true)}
                   onKeyDown={handleEnteredIdKeyDown}
                   placeholder="Enter Meva ID"
                   maxLength={12}
                   autoCapitalize="characters"
                   autoCorrect="off"
                   spellCheck={false}
-                  className={`h-[62px] w-full rounded-[18px] bg-[#FCFDFF] px-5 text-[17px] font-medium uppercase tracking-[0.02em] text-[#31205F] outline-none transition placeholder:normal-case placeholder:tracking-normal placeholder:text-[#8E87A3] ${
-                    showInputError
-                      ? "border border-[#E49AAA] ring-4 ring-[#F6C8D1]/40"
-                      : "border border-[#D9E1F0] focus:border-[#A9B8F8] focus:ring-4 focus:ring-[#A9B8F8]/20"
-                  }`}
+                  className="h-[62px] w-full rounded-[18px] border border-[#D9E1F0] bg-[#FCFDFF] px-5 text-[17px] font-medium uppercase tracking-[0.02em] text-[#31205F] outline-none transition placeholder:normal-case placeholder:tracking-normal placeholder:text-[#8E87A3] focus:border-[#A9B8F8] focus:ring-4 focus:ring-[#A9B8F8]/20"
                 />
               </div>
 
               <div className="mt-3 text-[14px] leading-6 text-[#7E83A0]">
                 <p>Example: P1K8XJ6Z</p>
                 <p>Meva IDs are generally on the back of the keychain.</p>
-                {showInputError ? (
-                  <p className="mt-1 font-medium text-[#C45C77]">
-                    Enter a valid Meva ID.
-                  </p>
-                ) : null}
               </div>
 
               <button
                 type="button"
                 onClick={handleOpenEnteredMeva}
-                className="mt-5 h-[58px] w-full rounded-[20px] bg-gradient-to-r from-[#B8A7F4] via-[#A18CF7] to-[#907AF4] text-[17px] font-extrabold text-white transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
+                className={`mt-5 h-[58px] w-full rounded-[20px] text-[17px] font-extrabold text-white transition duration-200 hover:scale-[1.01] active:scale-[0.99] ${
+                  hasAnyInput
+                    ? "bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4]"
+                    : "bg-gradient-to-r from-[#B8A7F4] via-[#A18CF7] to-[#907AF4]"
+                }`}
               >
                 Open Meva
               </button>

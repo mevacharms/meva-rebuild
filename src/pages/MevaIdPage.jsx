@@ -19,7 +19,6 @@ const MEVA_LOGO_URL =
   "https://firebasestorage.googleapis.com/v0/b/meva-clean.firebasestorage.app/o/brand%2FLogo.png?alt=media&token=dc0fef03-4c72-4a08-967e-0ffa9b55c39a";
 
 const PENDING_ACTION_KEY = "meva_pending_action";
-const ALLOWED_MEVA_IDS = new Set(["TEST", "EDALINET"]);
 
 function getMevaIdFromPath() {
   const rawPath = window.location.pathname;
@@ -62,10 +61,17 @@ function clearPendingAction() {
   localStorage.removeItem(PENDING_ACTION_KEY);
 }
 
+function isMobileLike() {
+  if (typeof window === "undefined") return false;
+  return (
+    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+    window.innerWidth < 768
+  );
+}
+
 export default function MevaIdPage() {
   const mevaId = getMevaIdFromPath();
   const isTestMeva = mevaId === "TEST";
-  const isAllowedMevaId = ALLOWED_MEVA_IDS.has(mevaId);
 
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -153,14 +159,6 @@ export default function MevaIdPage() {
     let cancelled = false;
 
     async function loadMeva() {
-      if (!isAllowedMevaId) {
-        setLoading(false);
-        setNotFound(true);
-        setError("");
-        setMevaData(null);
-        return;
-      }
-
       if (isTestMeva) {
         setLoading(false);
         setNotFound(false);
@@ -217,13 +215,13 @@ export default function MevaIdPage() {
     return () => {
       cancelled = true;
     };
-  }, [isAllowedMevaId, isTestMeva, mevaId]);
+  }, [isTestMeva, mevaId]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadViewerState() {
-      if (!authReady || loading || notFound || !isAllowedMevaId) return;
+      if (!authReady || loading || notFound) return;
 
       try {
         const result = await getMevaViewerState({ mevaId });
@@ -248,28 +246,18 @@ export default function MevaIdPage() {
     return () => {
       cancelled = true;
     };
-  }, [
-    authReady,
-    getMevaViewerState,
-    isAllowedMevaId,
-    loading,
-    mevaId,
-    notFound,
-    user,
-  ]);
+  }, [authReady, getMevaViewerState, loading, mevaId, notFound, user]);
 
   useEffect(() => {
-    if (loading || notFound || !isAllowedMevaId) return;
+    if (loading || notFound) return;
     trackInteraction("page_view");
-  }, [loading, notFound, isAllowedMevaId, mevaId]);
+  }, [loading, notFound, mevaId]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function resumePendingAction() {
-      if (!authReady || !user || loading || notFound || !isAllowedMevaId) {
-        return;
-      }
+      if (!authReady || !user || loading || notFound) return;
 
       const pending = readPendingAction();
       if (!pending || pending.mevaId !== mevaId) return;
@@ -282,26 +270,16 @@ export default function MevaIdPage() {
 
         if (pending.action === "claim") {
           await claimMeva({ mevaId });
-          if (!cancelled) {
-            setActionMessage("Signed in and claimed.");
-          }
         }
 
         if (pending.action === "unclaim") {
           await unclaimMeva({ mevaId });
-          if (!cancelled) {
-            setActionMessage("Signed in and unclaimed.");
-          }
+          await signOut(auth);
         }
 
         await refreshCurrentMeva();
       } catch (err) {
         console.error("Resume pending action failed:", err);
-        if (!cancelled) {
-          setActionMessage(
-            err?.message || "We couldn’t finish that action right now."
-          );
-        }
       } finally {
         if (!cancelled) {
           setActionLoading(false);
@@ -314,16 +292,7 @@ export default function MevaIdPage() {
     return () => {
       cancelled = true;
     };
-  }, [
-    authReady,
-    claimMeva,
-    isAllowedMevaId,
-    loading,
-    mevaId,
-    notFound,
-    unclaimMeva,
-    user,
-  ]);
+  }, [authReady, claimMeva, loading, mevaId, notFound, unclaimMeva, user]);
 
   const displayName =
     mevaData?.nickname && mevaData?.realName
@@ -373,8 +342,6 @@ export default function MevaIdPage() {
   };
 
   const refreshCurrentMeva = async () => {
-    if (!isAllowedMevaId) return;
-
     if (!isTestMeva) {
       const mevaRef = doc(db, "mevas", mevaId);
       const mevaSnap = await getDoc(mevaRef);
@@ -400,6 +367,29 @@ export default function MevaIdPage() {
   const beginGoogleSignIn = async (pendingAction) => {
     savePendingAction(pendingAction, mevaId);
     setAuthMessage("Opening Google sign-in...");
+
+    const preferRedirect = isMobileLike();
+
+    if (preferRedirect) {
+      try {
+        await setPersistence(auth, browserLocalPersistence);
+        await signInWithRedirect(auth, googleProvider);
+
+        return {
+          mode: "redirect",
+          user: null,
+        };
+      } catch (redirectErr) {
+        console.error("Redirect sign-in failed:", redirectErr);
+        clearPendingAction();
+        setAuthMessage("Google sign-in failed. Please try again.");
+
+        return {
+          mode: "failed",
+          user: null,
+        };
+      }
+    }
 
     try {
       await setPersistence(auth, browserLocalPersistence);
@@ -447,13 +437,12 @@ export default function MevaIdPage() {
         if (signInResult?.mode === "failed") return;
 
         if (signInResult?.mode === "popup" && signInResult.user) {
+          clearPendingAction();
           setUser(signInResult.user);
           await syncUserProfile();
           await claimMeva({ mevaId });
           await refreshCurrentMeva();
-          clearPendingAction();
           setAuthMessage("");
-          setActionMessage("Signed in and claimed.");
           return;
         }
 
@@ -463,7 +452,6 @@ export default function MevaIdPage() {
       await claimMeva({ mevaId });
       await refreshCurrentMeva();
       setAuthMessage("");
-      setActionMessage("This Meva is now claimed.");
     } catch (err) {
       console.error("Claim failed:", err);
       setActionMessage(err?.message || "We couldn’t claim this Meva right now.");
@@ -486,13 +474,13 @@ export default function MevaIdPage() {
         if (signInResult?.mode === "failed") return;
 
         if (signInResult?.mode === "popup" && signInResult.user) {
+          clearPendingAction();
           setUser(signInResult.user);
           await syncUserProfile();
           await unclaimMeva({ mevaId });
+          await signOut(auth);
           await refreshCurrentMeva();
-          clearPendingAction();
           setAuthMessage("");
-          setActionMessage("Signed in and unclaimed.");
           return;
         }
 
@@ -500,9 +488,9 @@ export default function MevaIdPage() {
       }
 
       await unclaimMeva({ mevaId });
+      await signOut(auth);
       await refreshCurrentMeva();
       setAuthMessage("");
-      setActionMessage("This Meva has been unclaimed.");
     } catch (err) {
       console.error("Unclaim failed:", err);
       setActionMessage(
@@ -518,7 +506,7 @@ export default function MevaIdPage() {
       <div className="relative w-full rounded-[34px] border border-white/80 bg-[#F7FAFF] px-5 pb-8 pt-8 shadow-[0_20px_70px_rgba(95,72,150,0.08)] sm:px-6 sm:pb-8 sm:pt-8">
         <a
           href="/m"
-          aria-label="Go to Meva"
+          aria-label="Back to Meva"
           className="absolute -left-[12px] -top-[12px] sm:-left-7 sm:-top-7"
         >
           <img
@@ -579,6 +567,19 @@ export default function MevaIdPage() {
               </div>
             </div>
 
+            <div className="mt-6 flex justify-center">
+              <div className="relative flex h-[146px] w-[146px] items-center justify-center">
+                <div className="absolute h-[122px] w-[122px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F2ECFF_0%,#DDD2FF_38%,#C6C7FF_70%,#AECFFF_100%)]" />
+                <img
+                  src={KIBO_IMAGE_URL}
+                  alt="Kibo"
+                  draggable="false"
+                  className="relative z-10 h-[108px] w-auto select-none object-contain"
+                  style={{ animation: "mevaFloat 3.6s ease-in-out infinite" }}
+                />
+              </div>
+            </div>
+
             <h1 className="mx-auto mt-5 max-w-[320px] text-center text-[28px] font-black leading-[1.02] tracking-[-0.03em] text-[#30215A] sm:text-[34px]">
               Meva page not found.
             </h1>
@@ -586,6 +587,15 @@ export default function MevaIdPage() {
             <p className="mx-auto mt-4 max-w-[330px] text-center text-[15px] leading-8 text-[#766F91] sm:text-[17px]">
               This Meva ID does not exist yet.
             </p>
+
+            <div className="mt-5">
+              <a
+                href="/m"
+                className="flex h-[56px] w-full items-center justify-center rounded-[20px] bg-[#EFE8FB] text-[16px] font-extrabold text-[#5A4D82] transition duration-200 hover:bg-[#E9E0FA]"
+              >
+                Back to Meva
+              </a>
+            </div>
           </>
         )}
       </div>
@@ -603,14 +613,7 @@ export default function MevaIdPage() {
       <div className="min-h-screen bg-[#EAF1FB] px-4 py-5 sm:px-5 sm:py-7">
         {renderCardShell(
           <>
-            <div className="flex items-start justify-between gap-3">
-              <a
-                href="/m"
-                className="rounded-full bg-white/85 px-4 py-2 text-[13px] font-bold text-[#6B5C96] shadow-sm"
-              >
-                meva
-              </a>
-
+            <div className="flex items-start justify-end gap-3">
               <div className="flex gap-2">
                 <div className="rounded-full bg-white/80 px-4 py-2 text-[13px] font-bold text-[#7B6F9E] shadow-sm">
                   Visited {mevaData?.tapCount ?? 0}
@@ -627,8 +630,6 @@ export default function MevaIdPage() {
                   {viewerState.isOwner ? "you found me" : "feed me"}
                   <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-l-[10px] border-r-[10px] border-t-[12px] border-l-transparent border-r-transparent border-t-white" />
                 </div>
-
-                <div className="absolute top-[70px] h-[130px] w-[130px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F2ECFF_0%,#DDD2FF_38%,#C6C7FF_70%,#AECFFF_100%)]" />
 
                 <img
                   src={imageUrl}
@@ -688,16 +689,6 @@ export default function MevaIdPage() {
               >
                 {actionLoading ? "Please wait..." : primaryButtonLabel}
               </button>
-
-              {user ? (
-                <button
-                  type="button"
-                  onClick={() => signOut(auth)}
-                  className="h-[56px] w-full rounded-[20px] bg-[#EFE8FB] text-[16px] font-extrabold text-[#5A4D82] transition duration-200 hover:bg-[#E9E0FA]"
-                >
-                  Sign Out
-                </button>
-              ) : null}
             </div>
           </>
         )}
