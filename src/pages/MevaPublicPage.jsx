@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
@@ -26,18 +26,38 @@ function getMevaIdFromPath() {
 
 export default function MevaPublicPage() {
   const mevaId = getMevaIdFromPath();
+  const isRootMPage = mevaId === "";
   const isTestMeva = mevaId === "TEST";
   const isValidRealId = /^[A-Z0-9]{8,12}$/.test(mevaId);
 
-  const [loading, setLoading] = useState(!isTestMeva);
+  const [loading, setLoading] = useState(!isRootMPage && !isTestMeva);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState("");
   const [mevaData, setMevaData] = useState(null);
+
+  const [enteredId, setEnteredId] = useState("");
+  const [touched, setTouched] = useState(false);
+
+  const cleanedEnteredId = useMemo(
+    () => enteredId.trim().toUpperCase(),
+    [enteredId]
+  );
+  const isValidEnteredId = /^[A-Z0-9]{8,12}$/.test(cleanedEnteredId);
+  const showInputError =
+    touched && cleanedEnteredId.length > 0 && !isValidEnteredId;
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadMeva() {
+      if (isRootMPage) {
+        setLoading(false);
+        setNotFound(false);
+        setError("");
+        setMevaData(null);
+        return;
+      }
+
       if (isTestMeva) {
         setLoading(false);
         setNotFound(false);
@@ -99,7 +119,7 @@ export default function MevaPublicPage() {
     return () => {
       cancelled = true;
     };
-  }, [isTestMeva, isValidRealId, mevaId]);
+  }, [isRootMPage, isTestMeva, isValidRealId, mevaId]);
 
   const displayName =
     mevaData?.nickname && mevaData?.realName
@@ -114,149 +134,352 @@ export default function MevaPublicPage() {
       ? "This is the test Meva used to preview the public Meva experience."
       : "This Meva is here, but it does not have a public bio yet.");
 
-  return (
-    <div className="min-h-screen bg-[#F5F0FB] px-4 py-5 sm:px-5 sm:py-7">
-      <div className="mx-auto w-full max-w-[470px] sm:max-w-[500px]">
-        <div className="mb-4 flex justify-start pl-1 sm:pl-2">
-          <a href="/hub" aria-label="Go to Meva hub">
-            <img
-              src={MEVA_LOGO_URL}
-              alt="Meva logo"
-              className="h-[72px] w-auto object-contain sm:h-[78px]"
-              draggable="false"
-            />
-          </a>
+  const handleEnteredIdChange = (e) => {
+    const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    setEnteredId(value);
+  };
+
+  const handleOpenEnteredMeva = () => {
+    setTouched(true);
+
+    if (!isValidEnteredId) return;
+
+    window.location.href = `/m/${cleanedEnteredId}`;
+  };
+
+  const handleEnteredIdKeyDown = (e) => {
+    if (e.key === "Enter") {
+      handleOpenEnteredMeva();
+    }
+  };
+
+  const renderRootMEntry = () => {
+    return (
+      <>
+        <div className="mb-4 flex justify-center">
+          <div className="rounded-full border border-[#DBDDF0] bg-[#F4F6FD] px-4 py-1 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#6B5C96]">
+            Meva Hub
+          </div>
         </div>
 
-        <div className="flex min-h-[calc(100vh-120px)] items-center justify-center">
-          <div className="w-full rounded-[34px] border border-white/80 bg-[#FFFDFE] px-5 pb-6 pt-5 shadow-[0_20px_70px_rgba(95,72,150,0.11)] sm:px-6 sm:pt-6">
-            <div className="mb-4 flex justify-center">
-              <div className="rounded-full border border-[#E9E0F7] bg-[#FBF8FF] px-4 py-1 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#6B5C96]">
-                {isTestMeva ? "Test Meva" : "Public Meva Page"}
-              </div>
-            </div>
+        <h1 className="mx-auto max-w-[330px] text-center text-[28px] font-black leading-[0.98] tracking-[-0.03em] text-[#30215A] sm:max-w-[380px] sm:text-[35px]">
+          Open a Meva page or try feeding the test Meva.
+        </h1>
 
-            <div className="mt-2 flex justify-center">
-              <div className="relative flex h-[146px] w-[146px] items-center justify-center">
-                <div className="absolute h-[122px] w-[122px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F8F2FF_0%,#E7D8FF_34%,#BEBEFF_68%,#9BCFFF_100%)]" />
-                <img
-                  src={KIBO_IMAGE_URL}
-                  alt="Kibo"
-                  draggable="false"
-                  className="relative z-10 h-[108px] w-auto select-none object-contain"
-                />
-              </div>
-            </div>
+        <p className="mx-auto mt-4 max-w-[350px] text-center text-[15px] leading-7 text-[#766F91] sm:max-w-[390px] sm:text-[17px] sm:leading-8">
+          Use the real test Meva to experience the interactive public page, or
+          enter a Meva ID to open one directly.
+        </p>
 
-            {loading ? (
-              <>
-                <h1 className="mx-auto mt-5 max-w-[320px] text-center text-[28px] font-black leading-[1.02] tracking-[-0.03em] text-[#30215A] sm:text-[34px]">
-                  Loading Meva...
-                </h1>
+        <div className="mt-6 flex justify-center">
+          <div className="relative flex h-[146px] w-[146px] items-center justify-center">
+            <div className="absolute h-[122px] w-[122px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F2ECFF_0%,#DDD2FF_38%,#C6C7FF_70%,#AECFFF_100%)]" />
+            <img
+              src={KIBO_IMAGE_URL}
+              alt="Kibo"
+              draggable="false"
+              className="relative z-10 h-[108px] w-auto select-none object-contain"
+              style={{
+                animation: "mevaFloat 3.6s ease-in-out infinite",
+              }}
+            />
+          </div>
+        </div>
 
-                <p className="mx-auto mt-4 max-w-[330px] text-center text-[15px] leading-8 text-[#766F91] sm:text-[17px]">
-                  Please wait while we load this Meva page.
-                </p>
-              </>
-            ) : error ? (
-              <>
-                <h1 className="mx-auto mt-5 max-w-[320px] text-center text-[28px] font-black leading-[1.02] tracking-[-0.03em] text-[#30215A] sm:text-[34px]">
-                  Couldn’t load Meva.
-                </h1>
+        <button
+          type="button"
+          onClick={() => {
+            window.location.href = "/m/test";
+          }}
+          className="mt-5 h-[58px] w-full rounded-[20px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[17px] font-extrabold text-white transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
+        >
+          Feed the Test Meva
+        </button>
 
-                <p className="mx-auto mt-4 max-w-[330px] text-center text-[15px] leading-8 text-[#766F91] sm:text-[17px]">
-                  {error}
-                </p>
+        <div className="mt-5 rounded-[28px] border border-[#DCE3F1] bg-[#EEF4FD] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] sm:p-5">
+          <h2 className="text-center text-[17px] font-extrabold tracking-[-0.02em] text-[#4D406D]">
+            Open a Meva by ID
+          </h2>
 
-                <div className="mt-5">
-                  <a
-                    href="/hub"
-                    className="flex h-[56px] w-full items-center justify-center rounded-[20px] bg-gradient-to-r from-[#B7A2FA] to-[#A994F2] text-[16px] font-extrabold text-white shadow-[0_12px_24px_rgba(171,150,242,0.24)] transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
-                  >
-                    Go to Hub
-                  </a>
-                </div>
-              </>
-            ) : notFound ? (
-              <>
-                <h1 className="mx-auto mt-5 max-w-[320px] text-center text-[28px] font-black leading-[1.02] tracking-[-0.03em] text-[#30215A] sm:text-[34px]">
-                  Meva page not found.
-                </h1>
+          <div className="mt-4">
+            <input
+              type="text"
+              value={enteredId}
+              onChange={handleEnteredIdChange}
+              onBlur={() => setTouched(true)}
+              onKeyDown={handleEnteredIdKeyDown}
+              placeholder="Enter Meva ID"
+              maxLength={12}
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+              className={`h-[62px] w-full rounded-[18px] bg-[#FCFDFF] px-5 text-[17px] font-medium uppercase tracking-[0.02em] text-[#31205F] outline-none transition placeholder:normal-case placeholder:tracking-normal placeholder:text-[#8E87A3] ${
+                showInputError
+                  ? "border border-[#E49AAA] ring-4 ring-[#F6C8D1]/40"
+                  : "border border-[#D9E1F0] focus:border-[#A9B8F8] focus:ring-4 focus:ring-[#A9B8F8]/20"
+              }`}
+            />
+          </div>
 
-                <p className="mx-auto mt-4 max-w-[330px] text-center text-[15px] leading-8 text-[#766F91] sm:text-[17px]">
-                  This Meva ID does not exist yet. Check the code on the back of
-                  the Meva and try again.
-                </p>
+          <div className="mt-3 text-[14px] leading-6 text-[#7E83A0]">
+            <p>Example: P1K8XJ6Z</p>
+            <p>Meva IDs are generally on the back of the Meva.</p>
+            {showInputError ? (
+              <p className="mt-1 font-medium text-[#C45C77]">
+                Enter a valid Meva ID using 8–12 letters or numbers.
+              </p>
+            ) : null}
+          </div>
 
-                <div className="mt-6 rounded-[26px] border border-[#F0D5DD] bg-[#FFF7F9] p-5 text-center">
-                  <p className="text-[13px] font-bold uppercase tracking-[0.14em] text-[#B27A8A]">
-                    Attempted ID
-                  </p>
-                  <p className="mt-2 break-all text-[22px] font-black tracking-[0.08em] text-[#8E4D62]">
-                    {mevaId || "UNKNOWN"}
-                  </p>
-                </div>
+          <button
+            type="button"
+            onClick={handleOpenEnteredMeva}
+            className="mt-5 h-[58px] w-full rounded-[20px] bg-gradient-to-r from-[#B8A7F4] via-[#A18CF7] to-[#907AF4] text-[17px] font-extrabold text-white transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
+          >
+            Open Meva
+          </button>
+        </div>
+      </>
+    );
+  };
 
-                <div className="mt-5">
-                  <a
-                    href="/hub"
-                    className="flex h-[56px] w-full items-center justify-center rounded-[20px] bg-gradient-to-r from-[#B7A2FA] to-[#A994F2] text-[16px] font-extrabold text-white shadow-[0_12px_24px_rgba(171,150,242,0.24)] transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
-                  >
-                    Go to Hub
-                  </a>
-                </div>
-              </>
-            ) : (
-              <>
-                <h1 className="mx-auto mt-5 max-w-[320px] text-center text-[28px] font-black leading-[1.02] tracking-[-0.03em] text-[#30215A] sm:text-[34px]">
-                  {displayName}
-                </h1>
+  const renderLoading = () => {
+    return (
+      <>
+        <div className="mb-4 flex justify-center">
+          <div className="rounded-full border border-[#DBDDF0] bg-[#F4F6FD] px-4 py-1 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#6B5C96]">
+            Public Meva Page
+          </div>
+        </div>
 
-                <p className="mx-auto mt-4 max-w-[330px] text-center text-[15px] leading-8 text-[#766F91] sm:text-[17px]">
-                  {bio}
-                </p>
+        <div className="mt-2 flex justify-center">
+          <div className="relative flex h-[146px] w-[146px] items-center justify-center">
+            <div className="absolute h-[122px] w-[122px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F2ECFF_0%,#DDD2FF_38%,#C6C7FF_70%,#AECFFF_100%)]" />
+            <img
+              src={KIBO_IMAGE_URL}
+              alt="Kibo"
+              draggable="false"
+              className="relative z-10 h-[108px] w-auto select-none object-contain opacity-85"
+              style={{
+                animation: "mevaFloat 3.6s ease-in-out infinite",
+              }}
+            />
+          </div>
+        </div>
 
-                <div className="mt-6 rounded-[26px] border border-[#E9E1F4] bg-[#F6F1FB] p-5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-                  <p className="text-[13px] font-bold uppercase tracking-[0.14em] text-[#8A82A3]">
-                    Meva ID
-                  </p>
-                  <p className="mt-2 break-all text-[24px] font-black tracking-[0.08em] text-[#31205F]">
-                    {mevaId}
-                  </p>
+        <h1 className="mx-auto mt-5 max-w-[320px] text-center text-[28px] font-black leading-[1.02] tracking-[-0.03em] text-[#30215A] sm:text-[34px]">
+          Loading Meva...
+        </h1>
 
-                  {mevaData?.ownerName ? (
-                    <>
-                      <p className="mt-4 text-[13px] font-bold uppercase tracking-[0.14em] text-[#8A82A3]">
-                        Owner
-                      </p>
-                      <p className="mt-2 text-[18px] font-bold text-[#4E416F]">
-                        {mevaData.ownerName}
-                      </p>
-                    </>
-                  ) : null}
-                </div>
+        <p className="mx-auto mt-4 max-w-[330px] text-center text-[15px] leading-8 text-[#766F91] sm:text-[17px]">
+          Please wait while we load this Meva page.
+        </p>
+      </>
+    );
+  };
 
-                <div className="mt-5 grid grid-cols-1 gap-3">
-                  <button
-                    type="button"
-                    className="h-[56px] w-full rounded-[20px] bg-gradient-to-r from-[#7958F2] to-[#8B6BFF] text-[16px] font-extrabold text-white shadow-[0_16px_30px_rgba(122,87,242,0.24)] transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
-                    onClick={() => alert("Next: build Meva interaction actions here")}
-                  >
-                    Interact with Meva
-                  </button>
+  const renderError = () => {
+    return (
+      <>
+        <div className="mb-4 flex justify-center">
+          <div className="rounded-full border border-[#DBDDF0] bg-[#F4F6FD] px-4 py-1 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#6B5C96]">
+            Public Meva Page
+          </div>
+        </div>
 
-                  <a
-                    href="/hub"
-                    className="flex h-[56px] w-full items-center justify-center rounded-[20px] bg-[#EFE8FB] text-[16px] font-extrabold text-[#5A4D82] transition duration-200 hover:bg-[#E9E0FA]"
-                  >
-                    Back to Hub
-                  </a>
-                </div>
-              </>
-            )}
+        <div className="mt-2 flex justify-center">
+          <div className="relative flex h-[146px] w-[146px] items-center justify-center">
+            <div className="absolute h-[122px] w-[122px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F2ECFF_0%,#DDD2FF_38%,#C6C7FF_70%,#AECFFF_100%)]" />
+            <img
+              src={KIBO_IMAGE_URL}
+              alt="Kibo"
+              draggable="false"
+              className="relative z-10 h-[108px] w-auto select-none object-contain opacity-85"
+            />
+          </div>
+        </div>
+
+        <h1 className="mx-auto mt-5 max-w-[320px] text-center text-[28px] font-black leading-[1.02] tracking-[-0.03em] text-[#30215A] sm:text-[34px]">
+          Couldn’t load Meva.
+        </h1>
+
+        <p className="mx-auto mt-4 max-w-[330px] text-center text-[15px] leading-8 text-[#766F91] sm:text-[17px]">
+          {error}
+        </p>
+
+        <div className="mt-5">
+          <a
+            href="/m"
+            className="flex h-[56px] w-full items-center justify-center rounded-[20px] bg-gradient-to-r from-[#B8A7F4] via-[#A18CF7] to-[#907AF4] text-[16px] font-extrabold text-white transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
+          >
+            Back to Meva
+          </a>
+        </div>
+      </>
+    );
+  };
+
+  const renderNotFound = () => {
+    return (
+      <>
+        <div className="mb-4 flex justify-center">
+          <div className="rounded-full border border-[#DBDDF0] bg-[#F4F6FD] px-4 py-1 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#6B5C96]">
+            Public Meva Page
+          </div>
+        </div>
+
+        <div className="mt-2 flex justify-center">
+          <div className="relative flex h-[146px] w-[146px] items-center justify-center">
+            <div className="absolute h-[122px] w-[122px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F2ECFF_0%,#DDD2FF_38%,#C6C7FF_70%,#AECFFF_100%)]" />
+            <img
+              src={KIBO_IMAGE_URL}
+              alt="Kibo"
+              draggable="false"
+              className="relative z-10 h-[108px] w-auto select-none object-contain opacity-85"
+            />
+          </div>
+        </div>
+
+        <h1 className="mx-auto mt-5 max-w-[320px] text-center text-[28px] font-black leading-[1.02] tracking-[-0.03em] text-[#30215A] sm:text-[34px]">
+          Meva page not found.
+        </h1>
+
+        <p className="mx-auto mt-4 max-w-[330px] text-center text-[15px] leading-8 text-[#766F91] sm:text-[17px]">
+          This Meva ID does not exist yet. Check the code on the back of the
+          Meva and try again.
+        </p>
+
+        <div className="mt-6 rounded-[26px] border border-[#DCE3F1] bg-[#EEF4FD] p-5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+          <p className="text-[13px] font-bold uppercase tracking-[0.14em] text-[#8A82A3]">
+            Attempted ID
+          </p>
+          <p className="mt-2 break-all text-[22px] font-black tracking-[0.08em] text-[#31205F]">
+            {mevaId || "UNKNOWN"}
+          </p>
+        </div>
+
+        <div className="mt-5">
+          <a
+            href="/m"
+            className="flex h-[56px] w-full items-center justify-center rounded-[20px] bg-gradient-to-r from-[#B8A7F4] via-[#A18CF7] to-[#907AF4] text-[16px] font-extrabold text-white transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
+          >
+            Back to Meva
+          </a>
+        </div>
+      </>
+    );
+  };
+
+  const renderLoadedMeva = () => {
+    return (
+      <>
+        <div className="mb-4 flex justify-center">
+          <div className="rounded-full border border-[#DBDDF0] bg-[#F4F6FD] px-4 py-1 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#6B5C96]">
+            {isTestMeva ? "Test Meva" : "Public Meva Page"}
+          </div>
+        </div>
+
+        <div className="mt-2 flex justify-center">
+          <div className="relative flex h-[146px] w-[146px] items-center justify-center">
+            <div className="absolute h-[122px] w-[122px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F2ECFF_0%,#DDD2FF_38%,#C6C7FF_70%,#AECFFF_100%)]" />
+            <img
+              src={KIBO_IMAGE_URL}
+              alt="Kibo"
+              draggable="false"
+              className="relative z-10 h-[108px] w-auto select-none object-contain"
+              style={{
+                animation: "mevaFloat 3.6s ease-in-out infinite",
+              }}
+            />
+          </div>
+        </div>
+
+        <h1 className="mx-auto mt-5 max-w-[320px] text-center text-[28px] font-black leading-[1.02] tracking-[-0.03em] text-[#30215A] sm:text-[34px]">
+          {displayName}
+        </h1>
+
+        <p className="mx-auto mt-4 max-w-[330px] text-center text-[15px] leading-8 text-[#766F91] sm:text-[17px]">
+          {bio}
+        </p>
+
+        <div className="mt-6 rounded-[26px] border border-[#DCE3F1] bg-[#EEF4FD] p-5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+          <p className="text-[13px] font-bold uppercase tracking-[0.14em] text-[#8A82A3]">
+            Meva ID
+          </p>
+          <p className="mt-2 break-all text-[24px] font-black tracking-[0.08em] text-[#31205F]">
+            {mevaId}
+          </p>
+
+          {mevaData?.ownerName ? (
+            <>
+              <p className="mt-4 text-[13px] font-bold uppercase tracking-[0.14em] text-[#8A82A3]">
+                Owner
+              </p>
+              <p className="mt-2 text-[18px] font-bold text-[#4E416F]">
+                {mevaData.ownerName}
+              </p>
+            </>
+          ) : null}
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-3">
+          <button
+            type="button"
+            className="h-[56px] w-full rounded-[20px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[16px] font-extrabold text-white transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
+            onClick={() => alert("Next: build Meva interaction actions here")}
+          >
+            Interact with Meva
+          </button>
+
+          <a
+            href="/m"
+            className="flex h-[56px] w-full items-center justify-center rounded-[20px] bg-[#EFE8FB] text-[16px] font-extrabold text-[#5A4D82] transition duration-200 hover:bg-[#E9E0FA]"
+          >
+            Back to Meva
+          </a>
+        </div>
+      </>
+    );
+  };
+
+  return (
+    <>
+      <div className="min-h-screen bg-[#EAF1FB] px-4 py-5 sm:px-5 sm:py-7">
+        <div className="mx-auto flex min-h-screen w-full max-w-[470px] items-center justify-center sm:max-w-[500px]">
+          <div className="relative w-full rounded-[34px] border border-white/80 bg-[#F7FAFF] px-5 pb-5 pt-8 shadow-[0_20px_70px_rgba(95,72,150,0.08)] sm:px-6 sm:pb-6 sm:pt-8">
+            <a
+              href="/"
+              aria-label="Go to Meva landing page"
+              className="absolute -left-[12px] -top-[12px] sm:-left-7 sm:-top-7"
+            >
+              <img
+                src={MEVA_LOGO_URL}
+                alt="Meva logo"
+                className="h-[110px] w-auto object-contain sm:h-[150px]"
+                draggable="false"
+              />
+            </a>
+
+            {isRootMPage
+              ? renderRootMEntry()
+              : loading
+              ? renderLoading()
+              : error
+              ? renderError()
+              : notFound
+              ? renderNotFound()
+              : renderLoadedMeva()}
           </div>
         </div>
       </div>
-    </div>
+
+      <style>{`
+        @keyframes mevaFloat {
+          0% { transform: translateY(0px); }
+          50% { transform: translateY(-6px); }
+          100% { transform: translateY(0px); }
+        }
+      `}</style>
+    </>
   );
 }
