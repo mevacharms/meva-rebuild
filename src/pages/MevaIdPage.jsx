@@ -5,7 +5,6 @@ import {
   onAuthStateChanged,
   setPersistence,
   signInWithPopup,
-  signInWithRedirect,
   signOut,
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -520,13 +519,14 @@ export default function MevaIdPage() {
         mevaId,
         currentUserUid: user?.uid || null,
         currentUserEmail: user?.email || null,
+        authCurrentUid: auth.currentUser?.uid || null,
+        authCurrentEmail: auth.currentUser?.email || null,
         viewerState,
       });
       if (!user) {
         trackInteraction("claim_click");
         const signInResult = await beginGoogleSignIn("claim");
 
-        if (signInResult?.mode === "redirect") return;
         if (signInResult?.mode === "failed") return;
 
         if (signInResult?.mode === "popup" && signInResult.user) {
@@ -628,7 +628,6 @@ export default function MevaIdPage() {
       if (!user) {
         const signInResult = await beginGoogleSignIn("unclaim");
 
-        if (signInResult?.mode === "redirect") return;
         if (signInResult?.mode === "failed") return;
 
         if (signInResult?.mode === "popup" && signInResult.user) {
