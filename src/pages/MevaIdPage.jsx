@@ -81,6 +81,25 @@ function isMobileLike() {
   );
 }
 
+async function waitForAuthUser(expectedUid, timeoutMs = 5000) {
+  if (auth.currentUser?.uid === expectedUid) return auth.currentUser;
+
+  return await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      unsubscribe();
+      reject(new Error("Auth session did not settle in time."));
+    }, timeoutMs);
+
+    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+      if (nextUser?.uid === expectedUid) {
+        clearTimeout(timeout);
+        unsubscribe();
+        resolve(nextUser);
+      }
+    });
+  });
+}
+
 export default function MevaIdPage() {
   const mevaId = getMevaIdFromPath();
   const isTestMeva = mevaId === "TEST";
@@ -434,6 +453,11 @@ export default function MevaIdPage() {
     });
 
     try {
+      if (!isMobileLike()) {
+        await setPersistence(auth, browserLocalPersistence);
+        pushDebug(setDebugInfo, "desktop_persistence_set_before_popup", {});
+      }
+
       pushDebug(setDebugInfo, "popup_sign_in_start", {
         mevaId,
       });
@@ -443,6 +467,8 @@ export default function MevaIdPage() {
       pushDebug(setDebugInfo, "popup_sign_in_success", {
         uid: popupResult.user?.uid || null,
         email: popupResult.user?.email || null,
+        currentUidImmediatelyAfterPopup: auth.currentUser?.uid || null,
+        currentEmailImmediatelyAfterPopup: auth.currentUser?.email || null,
       });
 
       return {
@@ -541,6 +567,13 @@ export default function MevaIdPage() {
             });
           });
 
+          pushDebug(setDebugInfo, "popup_auth_settled", {
+            popupUid: signInResult.user?.uid || null,
+            popupEmail: signInResult.user?.email || null,
+            currentUidBeforeTokenRefresh: auth.currentUser?.uid || null,
+            currentEmailBeforeTokenRefresh: auth.currentUser?.email || null,
+          });
+
           await auth.currentUser?.getIdToken(true);
 
           pushDebug(setDebugInfo, "token_refreshed_after_popup", {
@@ -569,8 +602,25 @@ export default function MevaIdPage() {
       }
 
       trackInteraction("claim_click");
+
+      pushDebug(setDebugInfo, "claim_existing_user_path_start", {
+        mevaId,
+        currentUserUid: auth.currentUser?.uid || null,
+        currentUserEmail: auth.currentUser?.email || null,
+      });
+
       await auth.currentUser?.getIdToken(true);
+
+      pushDebug(setDebugInfo, "claim_existing_user_token_ready", {
+        mevaId,
+        currentUserUid: auth.currentUser?.uid || null,
+        currentUserEmail: auth.currentUser?.email || null,
+      });
+
       await claimMeva({ mevaId });
+
+      pushDebug(setDebugInfo, "claim_existing_user_done", { mevaId });
+
       await refreshCurrentMeva();
       setAuthMessage("");
     } catch (err) {
@@ -619,6 +669,13 @@ export default function MevaIdPage() {
             });
           });
 
+          pushDebug(setDebugInfo, "popup_auth_settled", {
+            popupUid: signInResult.user?.uid || null,
+            popupEmail: signInResult.user?.email || null,
+            currentUidBeforeTokenRefresh: auth.currentUser?.uid || null,
+            currentEmailBeforeTokenRefresh: auth.currentUser?.email || null,
+          });
+
           await auth.currentUser?.getIdToken(true);
 
           pushDebug(setDebugInfo, "token_refreshed_after_popup", {
@@ -645,8 +702,24 @@ export default function MevaIdPage() {
         return;
       }
 
+      pushDebug(setDebugInfo, "unclaim_existing_user_path_start", {
+        mevaId,
+        currentUserUid: auth.currentUser?.uid || null,
+        currentUserEmail: auth.currentUser?.email || null,
+      });
+
       await auth.currentUser?.getIdToken(true);
+
+      pushDebug(setDebugInfo, "unclaim_existing_user_token_ready", {
+        mevaId,
+        currentUserUid: auth.currentUser?.uid || null,
+        currentUserEmail: auth.currentUser?.email || null,
+      });
+
       await unclaimMeva({ mevaId });
+
+      pushDebug(setDebugInfo, "unclaim_existing_user_done", { mevaId });
+
       await signOut(auth);
       await refreshCurrentMeva();
       setAuthMessage("");
