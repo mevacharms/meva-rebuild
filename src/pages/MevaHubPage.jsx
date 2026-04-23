@@ -39,7 +39,7 @@ export default function MevaHubPage() {
 
   return (
     <>
-      <div className="min-h-screen bg-[#F5F0FB] px-4 py-5 sm:px-5 sm:py-7">
+      <div className="min-h-screen bg-[#E9F1FB] px-4 py-5 sm:px-5 sm:py-7">
         <div className="mx-auto flex min-h-screen w-full max-w-[470px] items-center justify-center sm:max-w-[500px]">
           <div className="relative w-full rounded-[34px] border border-white/80 bg-[#FFFDFE] px-5 pb-5 pt-7 shadow-[0_20px_70px_rgba(95,72,150,0.11)] sm:px-6 sm:pb-6 sm:pt-8">
             <a
@@ -50,7 +50,7 @@ export default function MevaHubPage() {
               <img
                 src={MEVA_LOGO_URL}
                 alt="Meva logo"
-                className="h-[44px] w-auto object-contain sm:h-[150px]"
+                className="h-[90px] w-auto object-contain sm:h-[150px]"
                 draggable="false"
               />
             </a>
