@@ -10,9 +10,6 @@ import { doc, getDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { auth, db, functions, googleProvider } from "../firebase";
 
-const KIBO_IMAGE_URL =
-  "https://firebasestorage.googleapis.com/v0/b/meva-clean.firebasestorage.app/o/mevas%2FKibo%2FKibo.png?alt=media&token=82c12f12-2989-49dc-ae73-59ee0577c3a8";
-
 const MEVA_LOGO_URL =
   "https://firebasestorage.googleapis.com/v0/b/meva-clean.firebasestorage.app/o/brand%2FLogo.png?alt=media&token=dc0fef03-4c72-4a08-967e-0ffa9b55c39a";
 
@@ -94,11 +91,11 @@ export default function MevaPublicPage() {
   const showInputError =
     touched && cleanedEnteredId.length > 0 && !isValidEnteredId;
 
-    const getMevaViewerState = httpsCallable(functions, "getMevaViewerState");
-    const syncUserProfile = httpsCallable(functions, "syncUserProfile");
-    const claimMeva = httpsCallable(functions, "claimMeva");
-    const unclaimMeva = httpsCallable(functions, "unclaimMeva");
-    const logMevaInteraction = httpsCallable(functions, "logMevaInteraction");
+  const getMevaViewerState = httpsCallable(functions, "getMevaViewerState");
+  const syncUserProfile = httpsCallable(functions, "syncUserProfile");
+  const claimMeva = httpsCallable(functions, "claimMeva");
+  const unclaimMeva = httpsCallable(functions, "unclaimMeva");
+  const logMevaInteraction = httpsCallable(functions, "logMevaInteraction");
 
   useEffect(() => {
     let mounted = true;
@@ -168,7 +165,6 @@ export default function MevaPublicPage() {
           nickname: "Test Meva",
           realName: "Kibo",
           bio: "This is the test Meva used to preview the public Meva experience.",
-          imageUrl: KIBO_IMAGE_URL,
           isClaimed: false,
           tapCount: 382,
           ownerTapCount: 0,
@@ -368,8 +364,6 @@ export default function MevaPublicPage() {
       ? "This is the test Meva used to preview the public Meva experience."
       : "This Meva is here, but it does not have a public bio yet.");
 
-  const imageUrl = mevaData?.imageUrl || KIBO_IMAGE_URL;
-
   const handleEnteredIdChange = (e) => {
     const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
     setEnteredId(value);
@@ -388,7 +382,7 @@ export default function MevaPublicPage() {
       handleOpenEnteredMeva();
     }
   };
-  
+
   const getClientContext = async () => {
     return {
       location: {
@@ -409,11 +403,11 @@ export default function MevaPublicPage() {
       },
     };
   };
-  
+
   const trackInteraction = async (eventType, extraMetadata = {}) => {
     try {
       const context = await getClientContext();
-  
+
       await logMevaInteraction({
         mevaId,
         eventType,
@@ -617,19 +611,6 @@ export default function MevaPublicPage() {
           </div>
         </div>
 
-        <div className="mt-2 flex justify-center">
-          <div className="relative flex h-[146px] w-[146px] items-center justify-center">
-            <div className="absolute h-[122px] w-[122px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F2ECFF_0%,#DDD2FF_38%,#C6C7FF_70%,#AECFFF_100%)]" />
-            <img
-              src={KIBO_IMAGE_URL}
-              alt="Kibo"
-              draggable="false"
-              className="relative z-10 h-[108px] w-auto select-none object-contain opacity-85"
-              style={{ animation: "mevaFloat 3.6s ease-in-out infinite" }}
-            />
-          </div>
-        </div>
-
         <h1 className="mx-auto mt-5 max-w-[320px] text-center text-[28px] font-black leading-[1.02] tracking-[-0.03em] text-[#30215A] sm:text-[34px]">
           Loading Meva...
         </h1>
@@ -647,18 +628,6 @@ export default function MevaPublicPage() {
         <div className="mb-4 flex justify-center">
           <div className="rounded-full border border-[#DBDDF0] bg-[#F4F6FD] px-4 py-1 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#6B5C96]">
             Public Meva Page
-          </div>
-        </div>
-
-        <div className="mt-2 flex justify-center">
-          <div className="relative flex h-[146px] w-[146px] items-center justify-center">
-            <div className="absolute h-[122px] w-[122px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F2ECFF_0%,#DDD2FF_38%,#C6C7FF_70%,#AECFFF_100%)]" />
-            <img
-              src={KIBO_IMAGE_URL}
-              alt="Kibo"
-              draggable="false"
-              className="relative z-10 h-[108px] w-auto select-none object-contain opacity-85"
-            />
           </div>
         </div>
 
@@ -688,18 +657,6 @@ export default function MevaPublicPage() {
         <div className="mb-4 flex justify-center">
           <div className="rounded-full border border-[#DBDDF0] bg-[#F4F6FD] px-4 py-1 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#6B5C96]">
             Public Meva Page
-          </div>
-        </div>
-
-        <div className="mt-2 flex justify-center">
-          <div className="relative flex h-[146px] w-[146px] items-center justify-center">
-            <div className="absolute h-[122px] w-[122px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F2ECFF_0%,#DDD2FF_38%,#C6C7FF_70%,#AECFFF_100%)]" />
-            <img
-              src={KIBO_IMAGE_URL}
-              alt="Kibo"
-              draggable="false"
-              className="relative z-10 h-[108px] w-auto select-none object-contain opacity-85"
-            />
           </div>
         </div>
 
@@ -734,17 +691,15 @@ export default function MevaPublicPage() {
   };
 
   const renderLoadedMeva = () => {
-    const claimButtonLabel = viewerState.isOwner
+    const primaryButtonLabel = viewerState.isOwner
       ? "Unclaim Meva"
       : viewerState.canClaim
       ? "Claim Meva"
-      : viewerState.isClaimed
-      ? "Already Claimed"
-      : "Claim Meva";
+      : "Feed Meva";
 
     return (
       <>
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-3">
           <a
             href="/m"
             className="rounded-full bg-white/85 px-4 py-2 text-[13px] font-bold text-[#6B5C96] shadow-sm"
@@ -754,42 +709,21 @@ export default function MevaPublicPage() {
 
           <div className="flex gap-2">
             <div className="rounded-full bg-white/80 px-4 py-2 text-[13px] font-bold text-[#7B6F9E] shadow-sm">
-              Visited{mevaData?.tapCount ?? 0}
+              Visited {mevaData?.tapCount ?? 0}
             </div>
             <div className="rounded-full bg-white/80 px-4 py-2 text-[13px] font-bold text-[#7B6F9E] shadow-sm">
-              Fed{mevaData?.visitorTapCount ?? 0}
+              Fed {mevaData?.visitorTapCount ?? 0}
             </div>
           </div>
         </div>
 
-        <div className="mt-8 flex justify-center">
-          <div className="relative flex min-h-[300px] w-full items-start justify-center">
-            <div className="absolute left-1/2 top-2 -translate-x-1/2 rounded-[22px] bg-white px-5 py-3 text-[15px] font-bold text-[#5E537F] shadow-sm">
-              {viewerState.isOwner ? "you found me" : "feed me"}
-              <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-l-[10px] border-r-[10px] border-t-[12px] border-l-transparent border-r-transparent border-t-white" />
-            </div>
-
-            <img
-              src={imageUrl}
-              alt={displayName}
-              draggable="false"
-              onClick={async () => {
-                await trackInteraction("tap");
-                setActionMessage("Fed.");
-              }}
-              className="mt-16 h-[150px] w-auto select-none object-contain cursor-pointer"
-              style={{ animation: "mevaFloat 3.6s ease-in-out infinite" }}
-            />
-          </div>
-        </div>
-
-        <div className="mt-2 flex justify-center">
+        <div className="mt-16 flex justify-center">
           <div className="rounded-full bg-white/90 px-5 py-3 text-[17px] font-black text-[#625683] shadow-sm">
             {displayName}
           </div>
         </div>
 
-        <div className="mx-auto mt-6 max-w-[320px] rounded-[26px] bg-white/85 px-6 py-5 text-center shadow-sm">
+        <div className="mx-auto mt-8 max-w-[320px] rounded-[26px] bg-white/85 px-6 py-5 text-center shadow-sm">
           <p className="text-[18px] leading-8 text-[#7D729B]">
             Tap to feed · Hold for a quiet moment
             <br />
@@ -816,7 +750,7 @@ export default function MevaPublicPage() {
         ) : null}
 
         <div className="mt-6 grid grid-cols-1 gap-3">
-        <button
+          <button
             type="button"
             onClick={
               viewerState.isOwner
@@ -831,7 +765,7 @@ export default function MevaPublicPage() {
             disabled={actionLoading}
             className="h-[58px] w-full rounded-[20px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[16px] font-extrabold text-white transition duration-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {actionLoading ? "Please wait..." : claimButtonLabel}
+            {actionLoading ? "Please wait..." : primaryButtonLabel}
           </button>
 
           {user ? (
@@ -894,14 +828,6 @@ export default function MevaPublicPage() {
           </div>
         </div>
       </div>
-
-      <style>{`
-        @keyframes mevaFloat {
-          0% { transform: translateY(0px); }
-          50% { transform: translateY(-6px); }
-          100% { transform: translateY(0px); }
-        }
-      `}</style>
     </>
   );
 }
