@@ -437,53 +437,46 @@ export default function MevaIdPage() {
       currentUserEmail: user?.email || null,
     });
 
-    const preferRedirect = isMobileLike();
-
-    if (preferRedirect) {
-      try {
-        await setPersistence(auth, browserLocalPersistence);
-        await signInWithRedirect(auth, googleProvider);
-
-        return {
-          mode: "redirect",
-          user: null,
-        };
-      } catch (redirectErr) {
-        console.error("Redirect sign-in failed:", redirectErr);
-        clearPendingAction();
-        setAuthMessage("Google sign-in failed. Please try again.");
-
-        return {
-          mode: "failed",
-          user: null,
-        };
-      }
-    }
-
     try {
       await setPersistence(auth, browserLocalPersistence);
       const popupResult = await signInWithPopup(auth, googleProvider);
-
+  
+      pushDebug(setDebugInfo, "popup_sign_in_success", {
+        uid: popupResult.user?.uid || null,
+        email: popupResult.user?.email || null,
+      });
+  
       return {
         mode: "popup",
         user: popupResult.user,
       };
     } catch (popupErr) {
       console.error("Popup sign-in failed:", popupErr);
-
+  
+      pushDebug(setDebugInfo, "popup_sign_in_failed", {
+        message: popupErr?.message || null,
+        code: popupErr?.code || null,
+      });
+  
       try {
         await setPersistence(auth, browserLocalPersistence);
         await signInWithRedirect(auth, googleProvider);
-
+  
         return {
           mode: "redirect",
           user: null,
         };
       } catch (redirectErr) {
         console.error("Redirect sign-in failed:", redirectErr);
+  
+        pushDebug(setDebugInfo, "redirect_sign_in_failed", {
+          message: redirectErr?.message || null,
+          code: redirectErr?.code || null,
+        });
+  
         clearPendingAction();
         setAuthMessage("Google sign-in failed. Please try again.");
-
+  
         return {
           mode: "failed",
           user: null,
@@ -517,8 +510,8 @@ export default function MevaIdPage() {
           await syncUserProfile();
           pushDebug(setDebugInfo, "claim_call_start", {
             mevaId,
-            currentUserUid: user?.uid || null,
-            currentUserEmail: user?.email || null,
+            currentUserUid: signInResult.user?.uid || null,
+            currentUserEmail: signInResult.user?.email || null,
           });
           await claimMeva({ mevaId });
           pushDebug(setDebugInfo, "claim_call_done", { mevaId });
@@ -558,8 +551,13 @@ export default function MevaIdPage() {
           clearPendingAction();
           setUser(signInResult.user);
           await syncUserProfile();
-          await unclaimMeva({ mevaId });
-          await signOut(auth);
+          pushDebug(setDebugInfo, "claim_call_start", {
+            mevaId,
+            currentUserUid: signInResult.user?.uid || null,
+            currentUserEmail: signInResult.user?.email || null,
+          });
+          await claimMeva({ mevaId });
+          pushDebug(setDebugInfo, "claim_call_done", { mevaId });
           await refreshCurrentMeva();
           setAuthMessage("");
           return;
