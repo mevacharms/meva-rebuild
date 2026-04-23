@@ -61,6 +61,18 @@ function clearPendingAction() {
   localStorage.removeItem(PENDING_ACTION_KEY);
 }
 
+function pushDebug(setter, label, data = {}) {
+  const entry = {
+    time: new Date().toISOString(),
+    label,
+    data,
+  };
+
+  console.log("[MEVA DEBUG]", label, data);
+
+  setter((prev) => [entry, ...prev].slice(0, 20));
+}
+
 function isMobileLike() {
   if (typeof window === "undefined") return false;
   return (
@@ -90,6 +102,9 @@ export default function MevaIdPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const [authMessage, setAuthMessage] = useState("");
+  const [debugInfo, setDebugInfo] = useState([]);
+  const isDebug =
+    new URLSearchParams(window.location.search).get("debug") === "1";
 
   const getMevaViewerState = useMemo(
     () => httpsCallable(functions, "getMevaViewerState"),
@@ -112,12 +127,23 @@ export default function MevaIdPage() {
     async function bootAuth() {
       try {
         await setPersistence(auth, browserLocalPersistence);
+        pushDebug(setDebugInfo, "persistence_set");
       } catch (err) {
         console.error("Persistence setup failed:", err);
+        pushDebug(setDebugInfo, "persistence_failed", {
+          message: err?.message || null,
+          code: err?.code || null,
+        });
       }
 
       try {
         const redirectResult = await getRedirectResult(auth);
+
+        pushDebug(setDebugInfo, "redirect_result_checked", {
+          hasUser: !!redirectResult?.user,
+          uid: redirectResult?.user?.uid || null,
+          email: redirectResult?.user?.email || null,
+        });
 
         if (redirectResult?.user && mounted) {
           setUser(redirectResult.user);
@@ -128,25 +154,51 @@ export default function MevaIdPage() {
 
             const pending = readPendingAction();
 
+            pushDebug(setDebugInfo, "redirect_pending_action", {
+              pending,
+              currentMevaId: mevaId,
+            });
+
             if (pending?.mevaId === mevaId) {
               if (pending.action === "claim") {
+                pushDebug(setDebugInfo, "redirect_claim_start", {
+                  mevaId,
+                  uid: redirectResult.user.uid,
+                  email: redirectResult.user.email,
+                });
                 await claimMeva({ mevaId });
+                pushDebug(setDebugInfo, "redirect_claim_done", { mevaId });
               }
 
               if (pending.action === "unclaim") {
+                pushDebug(setDebugInfo, "redirect_unclaim_start", {
+                  mevaId,
+                  uid: redirectResult.user.uid,
+                  email: redirectResult.user.email,
+                });
                 await unclaimMeva({ mevaId });
                 await signOut(auth);
+                pushDebug(setDebugInfo, "redirect_unclaim_done", { mevaId });
               }
 
               clearPendingAction();
               await refreshCurrentMeva();
+              pushDebug(setDebugInfo, "redirect_refresh_done", { mevaId });
             }
           } catch (resumeErr) {
             console.error("Redirect resume failed:", resumeErr);
+            pushDebug(setDebugInfo, "redirect_resume_failed", {
+              message: resumeErr?.message || null,
+              code: resumeErr?.code || null,
+            });
           }
         }
       } catch (err) {
         console.error("Redirect sign-in failed:", err);
+        pushDebug(setDebugInfo, "redirect_failed", {
+          message: err?.message || null,
+          code: err?.code || null,
+        });
         if (!mounted) return;
         setAuthMessage("Google sign-in could not finish. Please try again.");
       }
@@ -157,6 +209,12 @@ export default function MevaIdPage() {
     const unsub = onAuthStateChanged(auth, async (nextUser) => {
       if (!mounted) return;
 
+      pushDebug(setDebugInfo, "auth_state_changed", {
+        hasUser: !!nextUser,
+        uid: nextUser?.uid || null,
+        email: nextUser?.email || null,
+      });
+
       setUser(nextUser || null);
       setAuthReady(true);
 
@@ -165,8 +223,16 @@ export default function MevaIdPage() {
 
         try {
           await syncUserProfile();
+          pushDebug(setDebugInfo, "sync_user_done", {
+            uid: nextUser.uid,
+            email: nextUser.email,
+          });
         } catch (err) {
           console.error("User sync failed:", err);
+          pushDebug(setDebugInfo, "sync_user_failed", {
+            message: err?.message || null,
+            code: err?.code || null,
+          });
         }
       }
     });
@@ -338,6 +404,18 @@ export default function MevaIdPage() {
     }
 
     const viewerResult = await getMevaViewerState({ mevaId });
+
+    pushDebug(setDebugInfo, "viewer_state_result", {
+      mevaId,
+      isSignedIn: !!viewerResult.data?.isSignedIn,
+      isClaimed: !!viewerResult.data?.isClaimed,
+      isOwner: !!viewerResult.data?.isOwner,
+      canClaim: !!viewerResult.data?.canClaim,
+      canUnclaim: !!viewerResult.data?.canUnclaim,
+      currentUserUid: user?.uid || null,
+      currentUserEmail: user?.email || null,
+    });
+
     setViewerState({
       isSignedIn: !!viewerResult.data?.isSignedIn,
       isClaimed: !!viewerResult.data?.isClaimed,
@@ -350,6 +428,14 @@ export default function MevaIdPage() {
   const beginGoogleSignIn = async (pendingAction) => {
     savePendingAction(pendingAction, mevaId);
     setAuthMessage("Opening Google sign-in...");
+
+    pushDebug(setDebugInfo, "begin_google_sign_in", {
+      pendingAction,
+      mevaId,
+      preferRedirect: isMobileLike(),
+      currentUserUid: user?.uid || null,
+      currentUserEmail: user?.email || null,
+    });
 
     const preferRedirect = isMobileLike();
 
@@ -411,6 +497,12 @@ export default function MevaIdPage() {
       setActionLoading(true);
       setActionMessage("");
       setAuthMessage("");
+      pushDebug(setDebugInfo, "handle_claim_clicked", {
+        mevaId,
+        currentUserUid: user?.uid || null,
+        currentUserEmail: user?.email || null,
+        viewerState,
+      });
       await trackInteraction("claim_click");
 
       if (!user) {
@@ -423,7 +515,13 @@ export default function MevaIdPage() {
           clearPendingAction();
           setUser(signInResult.user);
           await syncUserProfile();
+          pushDebug(setDebugInfo, "claim_call_start", {
+            mevaId,
+            currentUserUid: user?.uid || null,
+            currentUserEmail: user?.email || null,
+          });
           await claimMeva({ mevaId });
+          pushDebug(setDebugInfo, "claim_call_done", { mevaId });
           await refreshCurrentMeva();
           setAuthMessage("");
           return;
@@ -646,6 +744,29 @@ export default function MevaIdPage() {
               <p className="mt-5 text-center text-[14px] font-medium text-[#B45E7F]">
                 {authMessage}
               </p>
+            ) : null}
+
+            {isDebug ? (
+              <div className="mt-5 rounded-[18px] bg-[#EEF4FD] p-4 text-left text-[12px] leading-5 text-[#4D406D]">
+                <p className="font-extrabold">Debug</p>
+                <p>User UID: {user?.uid || "none"}</p>
+                <p>User Email: {user?.email || "none"}</p>
+                <p>isSignedIn: {String(viewerState.isSignedIn)}</p>
+                <p>isClaimed: {String(viewerState.isClaimed)}</p>
+                <p>isOwner: {String(viewerState.isOwner)}</p>
+                <p>canClaim: {String(viewerState.canClaim)}</p>
+                <p>canUnclaim: {String(viewerState.canUnclaim)}</p>
+                <div className="mt-3 max-h-[220px] overflow-auto rounded-[12px] bg-white p-3">
+                  {debugInfo.map((item, index) => (
+                    <div key={`${item.time}-${index}`} className="mb-3">
+                      <p className="font-bold">{item.label}</p>
+                      <pre className="whitespace-pre-wrap break-words text-[11px]">
+                        {JSON.stringify(item.data, null, 2)}
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ) : null}
 
             {actionMessage ? (

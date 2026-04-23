@@ -62,7 +62,10 @@ exports.getMevaViewerState = onCall(async (request) => {
   const mevaRef = db.collection("mevas").doc(mevaId);
   const claimRef = db.collection("mevaClaims").doc(mevaId);
 
-  const [mevaSnap, claimSnap] = await Promise.all([mevaRef.get(), claimRef.get()]);
+  const [mevaSnap, claimSnap] = await Promise.all([
+    mevaRef.get(),
+    claimRef.get(),
+  ]);
 
   if (!mevaSnap.exists) {
     throw new HttpsError("not-found", "This Meva does not exist.");
@@ -70,10 +73,22 @@ exports.getMevaViewerState = onCall(async (request) => {
 
   const isSignedIn = !!request.auth;
   const isClaimed = claimSnap.exists;
+  const claimData = claimSnap.exists ? claimSnap.data() : null;
   const isOwner =
     !!request.auth &&
     claimSnap.exists &&
-    claimSnap.data()?.ownerUid === request.auth.uid;
+    claimData?.ownerUid === request.auth.uid;
+
+  console.log("getMevaViewerState", {
+    mevaId,
+    authUid: request.auth?.uid || null,
+    authEmail: request.auth?.token?.email || null,
+    isSignedIn,
+    isClaimed,
+    claimOwnerUid: claimData?.ownerUid || null,
+    claimOwnerEmail: claimData?.ownerEmail || null,
+    isOwner,
+  });
 
   return {
     isSignedIn,
@@ -121,12 +136,30 @@ exports.claimMeva = onCall(async (request) => {
   const claimRef = db.collection("mevaClaims").doc(mevaId);
   const userRef = db.collection("users").doc(request.auth.uid);
 
+  console.log("claimMeva_start", {
+    mevaId,
+    authUid: request.auth.uid,
+    authEmail: request.auth.token.email || null,
+  });
+
   await db.runTransaction(async (tx) => {
     const [mevaSnap, claimSnap, userSnap] = await Promise.all([
       tx.get(mevaRef),
       tx.get(claimRef),
       tx.get(userRef),
     ]);
+
+    console.log("claimMeva_transaction_state", {
+      mevaId,
+      mevaExists: mevaSnap.exists,
+      alreadyClaimed: claimSnap.exists,
+      existingOwnerUid: claimSnap.exists
+        ? claimSnap.data()?.ownerUid || null
+        : null,
+      existingOwnerEmail: claimSnap.exists
+        ? claimSnap.data()?.ownerEmail || null
+        : null,
+    });
 
     if (!mevaSnap.exists) {
       throw new HttpsError("not-found", "This Meva does not exist.");
@@ -182,6 +215,12 @@ exports.claimMeva = onCall(async (request) => {
     actorUid: request.auth.uid,
     actorEmail: request.auth.token.email || null,
     isAuthenticated: true,
+  });
+
+  console.log("claimMeva_success", {
+    mevaId,
+    authUid: request.auth.uid,
+    authEmail: request.auth.token.email || null,
   });
 
   return {
@@ -278,7 +317,10 @@ exports.logMevaInteraction = onCall(async (request) => {
   const mevaRef = db.collection("mevas").doc(mevaId);
   const claimRef = db.collection("mevaClaims").doc(mevaId);
 
-  const [mevaSnap, claimSnap] = await Promise.all([mevaRef.get(), claimRef.get()]);
+  const [mevaSnap, claimSnap] = await Promise.all([
+    mevaRef.get(),
+    claimRef.get(),
+  ]);
 
   if (!mevaSnap.exists) {
     throw new HttpsError("not-found", "This Meva does not exist.");
@@ -296,9 +338,10 @@ exports.logMevaInteraction = onCall(async (request) => {
   const safeLocation = {
     latitude: roundCoord(locationPayload.latitude),
     longitude: roundCoord(locationPayload.longitude),
-    accuracy: typeof locationPayload.accuracy === "number"
-      ? Math.round(locationPayload.accuracy)
-      : null,
+    accuracy:
+      typeof locationPayload.accuracy === "number"
+        ? Math.round(locationPayload.accuracy)
+        : null,
     city: sanitizeText(locationPayload.city, 80),
     region: sanitizeText(locationPayload.region, 80),
     country: sanitizeText(locationPayload.country, 80),
@@ -367,7 +410,10 @@ exports.getMevaAnalyticsSummary = onCall(async (request) => {
   const claimRef = db.collection("mevaClaims").doc(mevaId);
   const mevaRef = db.collection("mevas").doc(mevaId);
 
-  const [claimSnap, mevaSnap] = await Promise.all([claimRef.get(), mevaRef.get()]);
+  const [claimSnap, mevaSnap] = await Promise.all([
+    claimRef.get(),
+    mevaRef.get(),
+  ]);
 
   if (!mevaSnap.exists) {
     throw new HttpsError("not-found", "This Meva does not exist.");
