@@ -109,6 +109,15 @@ export default function MevaPublicPage() {
       } catch (err) {
         console.error("Redirect sign-in failed:", err);
         if (!mounted) return;
+
+        if (
+          err?.code === "auth/popup-closed-by-user" ||
+          err?.code === "auth/cancelled-popup-request"
+        ) {
+          setAuthMessage("Google sign-in was closed before it finished.");
+          return;
+        }
+
         setAuthMessage("Google sign-in could not finish. Please try again.");
       }
     }
@@ -117,11 +126,13 @@ export default function MevaPublicPage() {
 
     const unsub = onAuthStateChanged(auth, async (nextUser) => {
       if (!mounted) return;
-    
+
       setUser(nextUser || null);
       setAuthReady(true);
-    
+
       if (nextUser) {
+        setAuthMessage("");
+
         try {
           await syncUserProfile();
         } catch (err) {
@@ -284,14 +295,14 @@ export default function MevaPublicPage() {
         if (pending.action === "claim") {
           await claimMeva({ mevaId });
           if (!cancelled) {
-            setActionMessage("This Meva is now claimed.");
+            setActionMessage("Signed in and claimed.");
           }
         }
 
         if (pending.action === "unclaim") {
           await unclaimMeva({ mevaId });
           if (!cancelled) {
-            setActionMessage("This Meva has been unclaimed.");
+            setActionMessage("Signed in and unclaimed.");
           }
         }
 
@@ -443,7 +454,7 @@ export default function MevaPublicPage() {
 
   const beginGoogleSignIn = async (pendingAction) => {
     savePendingAction(pendingAction, mevaId);
-    setAuthMessage("");
+    setAuthMessage("Opening Google sign-in...");
 
     try {
       await signInWithRedirect(auth, googleProvider);
@@ -484,6 +495,7 @@ export default function MevaPublicPage() {
 
       await claimMeva({ mevaId });
       await refreshCurrentMeva();
+      setAuthMessage("");
       setActionMessage("This Meva is now claimed.");
     } catch (err) {
       console.error("Claim failed:", err);
@@ -507,6 +519,7 @@ export default function MevaPublicPage() {
 
       await unclaimMeva({ mevaId });
       await refreshCurrentMeva();
+      setAuthMessage("");
       setActionMessage("This Meva has been unclaimed.");
     } catch (err) {
       console.error("Unclaim failed:", err);
