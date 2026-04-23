@@ -453,11 +453,6 @@ export default function MevaIdPage() {
     });
 
     try {
-      if (!isMobileLike()) {
-        await setPersistence(auth, browserLocalPersistence);
-        pushDebug(setDebugInfo, "desktop_persistence_set_before_popup", {});
-      }
-
       pushDebug(setDebugInfo, "popup_sign_in_start", {
         mevaId,
       });
@@ -725,6 +720,12 @@ export default function MevaIdPage() {
       setAuthMessage("");
     } catch (err) {
       console.error("Unclaim failed:", err);
+      pushDebug(setDebugInfo, "unclaim_call_failed", {
+        message: err?.message || null,
+        code: err?.code || null,
+        name: err?.name || null,
+        details: err?.details || null,
+      });
       setActionMessage(
         err?.message || "We couldn’t unclaim this Meva right now."
       );
