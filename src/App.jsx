@@ -8,11 +8,9 @@ export default function App() {
       ? rawPath.slice(0, -1)
       : rawPath;
 
-  // Meva system
   if (path === "/m" || path.startsWith("/m/")) {
     return <MevaPublicPage />;
   }
 
-  // Landing page
   return <MevaLandingPage />;
 }
