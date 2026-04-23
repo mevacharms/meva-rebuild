@@ -39,24 +39,24 @@ export default function MevaHubPage() {
 
   return (
     <>
-      <div className="min-h-screen bg-[#E9F1FB] px-4 py-5 sm:px-5 sm:py-7">
+      <div className="min-h-screen bg-[#EAF1FB] px-4 py-5 sm:px-5 sm:py-7">
         <div className="mx-auto flex min-h-screen w-full max-w-[470px] items-center justify-center sm:max-w-[500px]">
-          <div className="relative w-full rounded-[34px] border border-white/80 bg-[#F7FAFF] px-5 pb-5 pt-7 shadow-[0_20px_70px_rgba(95,72,150,0.11)] sm:px-6 sm:pb-6 sm:pt-8">
-          <a
-  href="/"
-  aria-label="Go to Meva landing page"
-  className="absolute -left-2 -top-2 sm:-left-7 sm:-top-7"
->
-  <img
-    src={MEVA_LOGO_URL}
-    alt="Meva logo"
-    className="h-[100px] w-auto object-contain sm:h-[150px]"
-    draggable="false"
-  />
-</a>
+          <div className="relative w-full rounded-[34px] border border-white/80 bg-[#F7FAFF] px-5 pb-5 pt-8 shadow-[0_20px_70px_rgba(95,72,150,0.08)] sm:px-6 sm:pb-6 sm:pt-8">
+            <a
+              href="/"
+              aria-label="Go to Meva landing page"
+              className="absolute -left-[4px] -top-[4px] sm:-left-7 sm:-top-7"
+            >
+              <img
+                src={MEVA_LOGO_URL}
+                alt="Meva logo"
+                className="h-[110px] w-auto object-contain sm:h-[150px]"
+                draggable="false"
+              />
+            </a>
 
             <div className="mb-4 flex justify-center">
-              <div className="rounded-full border border-[#E9E0F7] bg-[#FBF8FF] px-4 py-1 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#6B5C96]">
+              <div className="rounded-full border border-[#DBD8F2] bg-[#F5F4FC] px-4 py-1 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#6B5C96]">
                 Meva Hub
               </div>
             </div>
@@ -72,7 +72,7 @@ export default function MevaHubPage() {
 
             <div className="mt-6 flex justify-center">
               <div className="relative flex h-[146px] w-[146px] items-center justify-center">
-                <div className="absolute h-[122px] w-[122px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F8F2FF_0%,#E7D8FF_34%,#BEBEFF_68%,#9BCFFF_100%)]" />
+                <div className="absolute h-[122px] w-[122px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F2ECFF_0%,#DDD2FF_38%,#C6C7FF_70%,#AECFFF_100%)]" />
                 <img
                   src={KIBO_IMAGE_URL}
                   alt="Kibo"
@@ -88,12 +88,12 @@ export default function MevaHubPage() {
             <button
               type="button"
               onClick={handleFeedTestMeva}
-              className="mt-5 h-[58px] w-full rounded-[20px] bg-gradient-to-r from-[#7958F2] to-[#8B6BFF] text-[17px] font-extrabold text-white transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
+              className="mt-5 h-[58px] w-full rounded-[20px] bg-gradient-to-r from-[#7663F2] to-[#8D7AFF] text-[17px] font-extrabold text-white transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
             >
               Feed the Test Meva
             </button>
 
-            <div className="mt-5 rounded-[28px] border border-[#E9E1F4] bg-[#F6F1FB] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] sm:p-5">
+            <div className="mt-5 rounded-[28px] border border-[#E1DEEF] bg-[#F2EFF8] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] sm:p-5">
               <h2 className="text-center text-[17px] font-extrabold tracking-[-0.02em] text-[#4D406D]">
                 Open a Meva by ID
               </h2>
@@ -110,10 +110,10 @@ export default function MevaHubPage() {
                   autoCapitalize="characters"
                   autoCorrect="off"
                   spellCheck={false}
-                  className={`h-[62px] w-full rounded-[18px] bg-white px-5 text-[17px] font-medium uppercase tracking-[0.02em] text-[#31205F] outline-none transition placeholder:normal-case placeholder:tracking-normal placeholder:text-[#8E87A3] ${
+                  className={`h-[62px] w-full rounded-[18px] bg-[#FCFCFF] px-5 text-[17px] font-medium uppercase tracking-[0.02em] text-[#31205F] outline-none transition placeholder:normal-case placeholder:tracking-normal placeholder:text-[#8E87A3] ${
                     showError
                       ? "border border-[#E49AAA] ring-4 ring-[#F6C8D1]/40"
-                      : "border border-[#E8E1F3] focus:border-[#B79CFF] focus:ring-4 focus:ring-[#B79CFF]/20"
+                      : "border border-[#E3DFF0] focus:border-[#B79CFF] focus:ring-4 focus:ring-[#B79CFF]/20"
                   }`}
                 />
               </div>
@@ -131,7 +131,7 @@ export default function MevaHubPage() {
               <button
                 type="button"
                 onClick={handleOpenMeva}
-                className="mt-5 h-[58px] w-full rounded-[20px] bg-gradient-to-r from-[#B7A2FA] to-[#A994F2] text-[17px] font-extrabold text-white transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
+                className="mt-5 h-[58px] w-full rounded-[20px] bg-gradient-to-r from-[#A999F0] to-[#B6A9F8] text-[17px] font-extrabold text-white transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
               >
                 Open Meva
               </button>
