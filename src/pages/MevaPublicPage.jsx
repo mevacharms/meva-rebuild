@@ -447,11 +447,11 @@ export default function MevaPublicPage() {
       <div className="min-h-screen bg-[#EAF1FB] px-4 py-5 sm:px-5 sm:py-7">
         <div className="mx-auto flex min-h-screen w-full max-w-[470px] items-center justify-center sm:max-w-[500px]">
           <div className="relative w-full rounded-[34px] border border-white/80 bg-[#F7FAFF] px-5 pb-5 pt-8 shadow-[0_20px_70px_rgba(95,72,150,0.08)] sm:px-6 sm:pb-6 sm:pt-8">
-            <a
-              href="/"
-              aria-label="Go to Meva landing page"
-              className="absolute -left-[12px] -top-[12px] sm:-left-7 sm:-top-7"
-            >
+          <a
+  href="/m"
+  aria-label="Go to Meva"
+  className="absolute -left-[12px] -top-[12px] sm:-left-7 sm:-top-7"
+>
               <img
                 src={MEVA_LOGO_URL}
                 alt="Meva logo"
