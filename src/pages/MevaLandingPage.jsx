@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
 export default function MevaLandingPage() {
@@ -7,7 +7,7 @@ export default function MevaLandingPage() {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,21 +28,25 @@ export default function MevaLandingPage() {
     try {
       setIsSubmitting(true);
       setSubmitError("");
-      setIsSuccess(false);
 
-      await addDoc(collection(db, "earlyAccess"), {
+      await setDoc(doc(db, "earlyAccess", trimmedEmail), {
         name: trimmedName,
         email: trimmedEmail,
         source: "landing-page",
         createdAt: serverTimestamp(),
       });
 
-      setIsSuccess(true);
       setName("");
       setEmail("");
+      setShowSuccessModal(true);
     } catch (error) {
       console.error("Error joining early access:", error);
-      setSubmitError("Something went wrong. Please try again.");
+
+      if (error?.code === "permission-denied") {
+        setSubmitError("This email is already on the list.");
+      } else {
+        setSubmitError("Something went wrong. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -59,7 +63,6 @@ export default function MevaLandingPage() {
       `}</style>
 
       <div className="relative mx-auto min-h-screen max-w-[1600px] overflow-hidden px-5 pb-14 pt-5 sm:px-8 sm:pb-20 sm:pt-7 md:px-10 lg:px-12">
-        {/* soft background glows */}
         <div className="pointer-events-none absolute left-[-2%] top-[8%] h-28 w-28 rounded-full bg-white/30 blur-2xl sm:h-40 sm:w-40 md:h-52 md:w-52" />
         <div className="pointer-events-none absolute right-[8%] top-[16%] h-24 w-24 rounded-full bg-white/25 blur-2xl sm:h-32 sm:w-32 md:h-44 md:w-44" />
         <div className="pointer-events-none absolute bottom-[10%] right-[-1%] h-28 w-28 rounded-full bg-white/25 blur-2xl sm:h-40 sm:w-40 md:h-52 md:w-52" />
@@ -71,7 +74,6 @@ export default function MevaLandingPage() {
         </header>
 
         <main className="mx-auto flex w-full max-w-[1180px] flex-col items-center pt-7 text-center sm:pt-9 md:pt-10">
-          {/* hero circle */}
           <div
             className="
               mb-6 flex h-[138px] w-[138px] items-center justify-center rounded-full
@@ -94,7 +96,6 @@ export default function MevaLandingPage() {
             <h1 className="font-black leading-[0.96] tracking-[-0.05em] text-[#574a6d] text-[2.45rem] sm:text-[3rem] md:text-[3.8rem] lg:text-[4.35rem]">
               <span className="block sm:hidden">A tiny charm</span>
               <span className="block sm:hidden">that comes to life.</span>
-
               <span className="hidden sm:block">A tiny charm that</span>
               <span className="hidden sm:block">comes to life.</span>
             </h1>
@@ -115,7 +116,7 @@ export default function MevaLandingPage() {
           <div className="mt-7 flex w-full max-w-[520px] flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
             <a
               href="#early-access"
-              className="inline-flex h-12 w-full items-center justify-center rounded-full bg-gradient-to-r from-[#baa7ff] to-[#836cff] px-6 text-sm font-extrabold text-white shadow-[0_14px_32px_rgba(124,104,255,0.22)] transition duration-200 hover:-translate-y-0.5 sm:h-13 sm:flex-1 sm:text-base"
+              className="inline-flex h-12 w-full items-center justify-center rounded-full bg-gradient-to-r from-[#baa7ff] to-[#836cff] px-6 text-sm font-extrabold text-white shadow-[0_14px_32px_rgba(124,104,255,0.22)] transition duration-200 hover:-translate-y-0.5 sm:flex-1 sm:text-base"
             >
               Join early access
             </a>
@@ -162,7 +163,7 @@ export default function MevaLandingPage() {
                 }}
                 placeholder="What should we call you?"
                 autoComplete="name"
-                className="h-13 rounded-[1rem] border border-[#e5def8] bg-white/85 px-4 text-[15px] text-[#574a6d] outline-none placeholder:text-[#938aa6] focus:border-[#baa7ff] focus:ring-4 focus:ring-[#cfc3ff]/30 sm:h-14 sm:px-5 sm:text-base"
+                className="h-[52px] rounded-[1rem] border border-[#e5def8] bg-white/85 px-4 text-[15px] text-[#574a6d] outline-none placeholder:text-[#938aa6] focus:border-[#baa7ff] focus:ring-4 focus:ring-[#cfc3ff]/30 sm:h-14 sm:px-5 sm:text-base"
               />
 
               <input
@@ -175,13 +176,13 @@ export default function MevaLandingPage() {
                 placeholder="Email"
                 autoComplete="email"
                 inputMode="email"
-                className="h-13 rounded-[1rem] border border-[#e5def8] bg-white/85 px-4 text-[15px] text-[#574a6d] outline-none placeholder:text-[#938aa6] focus:border-[#baa7ff] focus:ring-4 focus:ring-[#cfc3ff]/30 sm:h-14 sm:px-5 sm:text-base"
+                className="h-[52px] rounded-[1rem] border border-[#e5def8] bg-white/85 px-4 text-[15px] text-[#574a6d] outline-none placeholder:text-[#938aa6] focus:border-[#baa7ff] focus:ring-4 focus:ring-[#cfc3ff]/30 sm:h-14 sm:px-5 sm:text-base"
               />
 
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="inline-flex h-13 items-center justify-center rounded-[1rem] bg-gradient-to-r from-[#baa7ff] to-[#836cff] px-6 text-[15px] font-extrabold text-white shadow-[0_16px_34px_rgba(124,104,255,0.22)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(124,104,255,0.28)] disabled:cursor-not-allowed disabled:opacity-70 sm:h-14 sm:text-base"
+                className="inline-flex h-[52px] items-center justify-center rounded-[1rem] bg-gradient-to-r from-[#baa7ff] to-[#836cff] px-6 text-[15px] font-extrabold text-white shadow-[0_16px_34px_rgba(124,104,255,0.22)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(124,104,255,0.28)] disabled:cursor-not-allowed disabled:opacity-70 sm:h-14 sm:text-base"
               >
                 {isSubmitting ? "Joining..." : "Join waitlist"}
               </button>
@@ -190,14 +191,6 @@ export default function MevaLandingPage() {
                 <p className="text-center text-sm font-semibold text-[#c2577c]">
                   {submitError}
                 </p>
-              ) : null}
-
-              {isSuccess ? (
-                <div className="rounded-[1rem] border border-[#ddd4ff] bg-white/70 px-4 py-3 text-center shadow-[0_10px_24px_rgba(140,153,180,0.06)]">
-                  <p className="text-sm font-bold text-[#625777] sm:text-base">
-                    You’re in. We’ll let you know when Meva opens early access.
-                  </p>
-                </div>
               ) : null}
             </form>
 
@@ -222,6 +215,32 @@ export default function MevaLandingPage() {
           </footer>
         </main>
       </div>
+
+      {showSuccessModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#5b4f79]/20 px-4 backdrop-blur-[6px]">
+          <div className="w-full max-w-[360px] rounded-[1.4rem] border border-white/60 bg-white/88 px-5 py-5 text-center shadow-[0_24px_60px_rgba(91,79,121,0.18)] sm:max-w-[390px] sm:px-6 sm:py-6">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-r from-[#c7b8ff] to-[#9c87ff] text-xl text-white shadow-[0_10px_24px_rgba(124,104,255,0.22)]">
+              ✦
+            </div>
+
+            <h3 className="mt-4 text-[1.4rem] font-black tracking-[-0.03em] text-[#574a6d]">
+              You’re in
+            </h3>
+
+            <p className="mx-auto mt-2 max-w-[280px] text-sm leading-relaxed text-[#756a8d] sm:text-base">
+              Thanks for being here early — we’ll let you know when Meva is ready.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setShowSuccessModal(false)}
+              className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-[0.95rem] bg-gradient-to-r from-[#baa7ff] to-[#836cff] px-5 text-sm font-extrabold text-white shadow-[0_14px_30px_rgba(124,104,255,0.22)] transition duration-200 hover:-translate-y-0.5 sm:h-12 sm:text-base"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
