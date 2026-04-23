@@ -479,29 +479,15 @@ export default function MevaIdPage() {
       });
 
       if (popupErr?.code === "auth/popup-blocked") {
-        try {
-          await signInWithRedirect(auth, googleProvider);
+        clearPendingAction();
+        setAuthMessage(
+          "Browser blocked the Google sign-in popup. Please allow popups for this site and try again."
+        );
 
-          return {
-            mode: "redirect",
-            user: null,
-          };
-        } catch (redirectErr) {
-          console.error("Redirect sign-in failed:", redirectErr);
-
-          pushDebug(setDebugInfo, "redirect_sign_in_failed", {
-            message: redirectErr?.message || null,
-            code: redirectErr?.code || null,
-          });
-
-          clearPendingAction();
-          setAuthMessage("Google sign-in failed. Please try again.");
-
-          return {
-            mode: "failed",
-            user: null,
-          };
-        }
+        return {
+          mode: "failed",
+          user: null,
+        };
       }
 
       clearPendingAction();
