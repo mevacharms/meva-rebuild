@@ -45,12 +45,12 @@ export default function MevaHubPage() {
             <a
               href="/"
               aria-label="Go to Meva landing page"
-              className="absolute left-6 top-6 sm:left-7 sm:top-7"
+              className="absolute left-1 top-0 sm:-left-7 sm:-top-7"
             >
               <img
                 src={MEVA_LOGO_URL}
                 alt="Meva logo"
-                className="h-[44px] w-auto object-contain sm:h-[50px]"
+                className="h-[44px] w-auto object-contain sm:h-[150px]"
                 draggable="false"
               />
             </a>
@@ -65,7 +65,7 @@ export default function MevaHubPage() {
               Open a Meva page or try feeding the test Meva.
             </h1>
 
-            <p className="mx-auto mt-4 max-w-[350px] text-center text-[15px] leading-8 text-[#766F91] sm:max-w-[390px] sm:text-[17px]">
+            <p className="mx-auto mt-4 max-w-[350px] text-center text-[15px] leading-7 text-[#766F91] sm:max-w-[390px] sm:text-[17px] sm:leading-8">
               Use the real test Meva to experience the interactive public page,
               or enter a Meva ID to open one directly.
             </p>
@@ -131,7 +131,7 @@ export default function MevaHubPage() {
               <button
                 type="button"
                 onClick={handleOpenMeva}
-                className="mt-5 h-[58px] w-full rounded-[20px] bg-gradient-to-r from-[#B7A2FA] to-[#A994F2] text-[17px] font-extrabold text-white shadow-[0_12px_24px_rgba(171,150,242,0.24)] transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
+                className="mt-5 h-[58px] w-full rounded-[20px] bg-gradient-to-r from-[#B7A2FA] to-[#A994F2] text-[17px] font-extrabold text-white transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
               >
                 Open Meva
               </button>
