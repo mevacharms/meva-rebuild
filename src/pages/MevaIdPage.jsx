@@ -122,6 +122,28 @@ export default function MevaIdPage() {
         if (redirectResult?.user && mounted) {
           setUser(redirectResult.user);
           setAuthMessage("");
+
+          try {
+            await syncUserProfile();
+
+            const pending = readPendingAction();
+
+            if (pending?.mevaId === mevaId) {
+              if (pending.action === "claim") {
+                await claimMeva({ mevaId });
+              }
+
+              if (pending.action === "unclaim") {
+                await unclaimMeva({ mevaId });
+                await signOut(auth);
+              }
+
+              clearPendingAction();
+              await refreshCurrentMeva();
+            }
+          } catch (resumeErr) {
+            console.error("Redirect resume failed:", resumeErr);
+          }
         }
       } catch (err) {
         console.error("Redirect sign-in failed:", err);
@@ -253,46 +275,7 @@ export default function MevaIdPage() {
     trackInteraction("page_view");
   }, [loading, notFound, mevaId]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function resumePendingAction() {
-      if (!authReady || !user || loading || notFound) return;
-
-      const pending = readPendingAction();
-      if (!pending || pending.mevaId !== mevaId) return;
-
-      clearPendingAction();
-
-      try {
-        setActionLoading(true);
-        setActionMessage("");
-
-        if (pending.action === "claim") {
-          await claimMeva({ mevaId });
-        }
-
-        if (pending.action === "unclaim") {
-          await unclaimMeva({ mevaId });
-          await signOut(auth);
-        }
-
-        await refreshCurrentMeva();
-      } catch (err) {
-        console.error("Resume pending action failed:", err);
-      } finally {
-        if (!cancelled) {
-          setActionLoading(false);
-        }
-      }
-    }
-
-    resumePendingAction();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authReady, claimMeva, loading, mevaId, notFound, unclaimMeva, user]);
+  useEffect(() => {}, []);
 
   const displayName =
     mevaData?.nickname && mevaData?.realName
