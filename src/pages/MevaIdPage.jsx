@@ -526,19 +526,34 @@ export default function MevaIdPage() {
           clearPendingAction();
           setUser(signInResult.user);
 
-          await signInResult.user.getIdToken(true);
+          await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              unsubscribe();
+              reject(new Error("Auth session did not settle in time."));
+            }, 5000);
+
+            const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+              if (nextUser?.uid === signInResult.user.uid) {
+                clearTimeout(timeout);
+                unsubscribe();
+                resolve();
+              }
+            });
+          });
+
+          await auth.currentUser?.getIdToken(true);
 
           pushDebug(setDebugInfo, "token_refreshed_after_popup", {
-            uid: signInResult.user?.uid || null,
-            email: signInResult.user?.email || null,
+            uid: auth.currentUser?.uid || null,
+            email: auth.currentUser?.email || null,
           });
 
           await syncUserProfile();
 
           pushDebug(setDebugInfo, "claim_call_start", {
             mevaId,
-            currentUserUid: signInResult.user?.uid || null,
-            currentUserEmail: signInResult.user?.email || null,
+            currentUserUid: auth.currentUser?.uid || null,
+            currentUserEmail: auth.currentUser?.email || null,
           });
 
           await claimMeva({ mevaId });
@@ -554,6 +569,7 @@ export default function MevaIdPage() {
       }
 
       trackInteraction("claim_click");
+      await auth.currentUser?.getIdToken(true);
       await claimMeva({ mevaId });
       await refreshCurrentMeva();
       setAuthMessage("");
@@ -588,19 +604,34 @@ export default function MevaIdPage() {
           clearPendingAction();
           setUser(signInResult.user);
 
-          await signInResult.user.getIdToken(true);
+          await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              unsubscribe();
+              reject(new Error("Auth session did not settle in time."));
+            }, 5000);
+
+            const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+              if (nextUser?.uid === signInResult.user.uid) {
+                clearTimeout(timeout);
+                unsubscribe();
+                resolve();
+              }
+            });
+          });
+
+          await auth.currentUser?.getIdToken(true);
 
           pushDebug(setDebugInfo, "token_refreshed_after_popup", {
-            uid: signInResult.user?.uid || null,
-            email: signInResult.user?.email || null,
+            uid: auth.currentUser?.uid || null,
+            email: auth.currentUser?.email || null,
           });
 
           await syncUserProfile();
 
           pushDebug(setDebugInfo, "unclaim_call_start", {
             mevaId,
-            currentUserUid: signInResult.user?.uid || null,
-            currentUserEmail: signInResult.user?.email || null,
+            currentUserUid: auth.currentUser?.uid || null,
+            currentUserEmail: auth.currentUser?.email || null,
           });
 
           await unclaimMeva({ mevaId });
@@ -614,6 +645,7 @@ export default function MevaIdPage() {
         return;
       }
 
+      await auth.currentUser?.getIdToken(true);
       await unclaimMeva({ mevaId });
       await signOut(auth);
       await refreshCurrentMeva();
@@ -822,16 +854,7 @@ export default function MevaIdPage() {
             <div className="mt-6 grid grid-cols-1 gap-3">
               <button
                 type="button"
-                onClick={
-                  viewerState.isOwner
-                    ? handleUnclaim
-                    : viewerState.canClaim
-                    ? handleClaim
-                    : async () => {
-                        await trackInteraction("feed");
-                        setActionMessage("Fed.");
-                      }
-                }
+                onClick={viewerState.isClaimed ? handleUnclaim : handleClaim}
                 disabled={actionLoading}
                 className="h-[58px] w-full rounded-[20px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[16px] font-extrabold text-white transition duration-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
