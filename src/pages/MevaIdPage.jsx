@@ -9,7 +9,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable, httpsCallableFromURL } from "firebase/functions";
 import { auth, db, functions, googleProvider } from "../firebase";
 
 const KIBO_IMAGE_URL =
@@ -114,7 +114,14 @@ export default function MevaIdPage() {
     () => httpsCallable(functions, "syncUserProfile"),
     []
   );
-  const claimMeva = useMemo(() => httpsCallable(functions, "claimMeva"), []);
+  const claimMeva = useMemo(
+    () =>
+      httpsCallableFromURL(
+        functions,
+        "https://us-central1-meva-clean.cloudfunctions.net/claimMeva"
+      ),
+    []
+  );
   const unclaimMeva = useMemo(() => httpsCallable(functions, "unclaimMeva"), []);
   const logMevaInteraction = useMemo(
     () => httpsCallable(functions, "logMevaInteraction"),
@@ -525,14 +532,26 @@ export default function MevaIdPage() {
         if (signInResult?.mode === "popup" && signInResult.user) {
           clearPendingAction();
           setUser(signInResult.user);
+
+          await signInResult.user.getIdToken(true);
+
+          pushDebug(setDebugInfo, "token_refreshed_after_popup", {
+            uid: signInResult.user?.uid || null,
+            email: signInResult.user?.email || null,
+          });
+
           await syncUserProfile();
+
           pushDebug(setDebugInfo, "claim_call_start", {
             mevaId,
             currentUserUid: signInResult.user?.uid || null,
             currentUserEmail: signInResult.user?.email || null,
           });
+
           await claimMeva({ mevaId });
+
           pushDebug(setDebugInfo, "claim_call_done", { mevaId });
+
           await refreshCurrentMeva();
           setAuthMessage("");
           return;
@@ -550,6 +569,8 @@ export default function MevaIdPage() {
       pushDebug(setDebugInfo, "claim_call_failed", {
         message: err?.message || null,
         code: err?.code || null,
+        name: err?.name || null,
+        details: err?.details || null,
       });
       setActionMessage(err?.message || "We couldn’t claim this Meva right now.");
     } finally {
@@ -573,12 +594,22 @@ export default function MevaIdPage() {
         if (signInResult?.mode === "popup" && signInResult.user) {
           clearPendingAction();
           setUser(signInResult.user);
+
+          await signInResult.user.getIdToken(true);
+
+          pushDebug(setDebugInfo, "token_refreshed_after_popup", {
+            uid: signInResult.user?.uid || null,
+            email: signInResult.user?.email || null,
+          });
+
           await syncUserProfile();
+
           pushDebug(setDebugInfo, "unclaim_call_start", {
             mevaId,
             currentUserUid: signInResult.user?.uid || null,
             currentUserEmail: signInResult.user?.email || null,
           });
+
           await unclaimMeva({ mevaId });
           await signOut(auth);
           pushDebug(setDebugInfo, "unclaim_call_done", { mevaId });
