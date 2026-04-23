@@ -1,5 +1,5 @@
-import MevaPage from "./MevaPage";
+import MevaLandingPage from "./pages/MevaLandingPage";
 
 export default function App() {
-  return <MevaPage />;
+  return <MevaLandingPage />;
 }
