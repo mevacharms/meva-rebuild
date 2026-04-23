@@ -5,6 +5,9 @@ import { db } from "../firebase";
 const KIBO_IMAGE_URL =
   "https://firebasestorage.googleapis.com/v0/b/meva-clean.firebasestorage.app/o/mevas%2FKibo%2FKibo.png?alt=media&token=82c12f12-2989-49dc-ae73-59ee0577c3a8";
 
+const MEVA_LOGO_URL =
+  "https://firebasestorage.googleapis.com/v0/b/meva-clean.firebasestorage.app/o/brand%2FLogo.png?alt=media&token=dc0fef03-4c72-4a08-967e-0ffa9b55c39a";
+
 function getMevaIdFromPath() {
   const rawPath = window.location.pathname;
   const path =
@@ -112,21 +115,18 @@ export default function MevaPublicPage() {
       : "This Meva is here, but it does not have a public bio yet.");
 
   return (
-    <div className="min-h-screen bg-[#F5F0FB] px-4 py-4 sm:px-5 sm:py-5">
-      <div className="absolute left-4 top-4 sm:left-6 sm:top-6">
-        <a
-          href="/hub"
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#CDAEFF] via-[#B3B7FF] to-[#8FD6FF] shadow-[0_12px_30px_rgba(137,111,201,0.20)] ring-1 ring-white/70"
-          aria-label="Go to Meva hub"
-        >
-          <span className="text-sm font-black italic tracking-tight text-white">
-            meva
-          </span>
+    <div className="min-h-screen bg-[#F5F0FB] px-4 py-5 sm:px-5 sm:py-7">
+      <div className="mx-auto flex min-h-screen max-w-[430px] flex-col items-center justify-center">
+        <a href="/hub" aria-label="Go to Meva hub" className="mb-4">
+          <img
+            src={MEVA_LOGO_URL}
+            alt="Meva logo"
+            className="h-[50px] w-auto object-contain sm:h-[54px]"
+            draggable="false"
+          />
         </a>
-      </div>
 
-      <div className="mx-auto flex min-h-screen max-w-[430px] items-center justify-center">
-        <div className="w-full rounded-[34px] border border-white/80 bg-[#FFFDFE] px-5 pb-6 pt-6 shadow-[0_20px_70px_rgba(95,72,150,0.11)] sm:px-6 sm:pt-7">
+        <div className="w-full rounded-[34px] border border-white/80 bg-[#FFFDFE] px-5 pb-6 pt-5 shadow-[0_20px_70px_rgba(95,72,150,0.11)] sm:px-6 sm:pt-6">
           <div className="mb-4 flex justify-center">
             <div className="rounded-full border border-[#E9E0F7] bg-[#FBF8FF] px-4 py-1 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#6B5C96]">
               {isTestMeva ? "Test Meva" : "Public Meva Page"}
@@ -134,14 +134,13 @@ export default function MevaPublicPage() {
           </div>
 
           <div className="mt-2 flex justify-center">
-            <div className="relative flex h-[150px] w-[150px] items-center justify-center">
-              <div className="absolute h-[138px] w-[138px] rounded-full bg-[#CDBBFF]/18 blur-md" />
-              <div className="absolute h-[126px] w-[126px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F8F2FF_0%,#E7D8FF_34%,#BEBEFF_68%,#9BCFFF_100%)] shadow-[0_14px_30px_rgba(159,138,228,0.22)]" />
+            <div className="relative flex h-[146px] w-[146px] items-center justify-center">
+              <div className="absolute h-[122px] w-[122px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F8F2FF_0%,#E7D8FF_34%,#BEBEFF_68%,#9BCFFF_100%)]" />
               <img
                 src={KIBO_IMAGE_URL}
                 alt="Kibo"
                 draggable="false"
-                className="relative z-10 h-[112px] w-auto select-none object-contain drop-shadow-[0_8px_14px_rgba(90,66,135,0.10)]"
+                className="relative z-10 h-[108px] w-auto select-none object-contain"
               />
             </div>
           </div>
@@ -171,7 +170,7 @@ export default function MevaPublicPage() {
                   href="/hub"
                   className="flex h-[56px] w-full items-center justify-center rounded-[20px] bg-gradient-to-r from-[#B7A2FA] to-[#A994F2] text-[16px] font-extrabold text-white shadow-[0_12px_24px_rgba(171,150,242,0.24)] transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
                 >
-                  Go to Meva Hub
+                  Go to Hub
                 </a>
               </div>
             </>
@@ -200,7 +199,7 @@ export default function MevaPublicPage() {
                   href="/hub"
                   className="flex h-[56px] w-full items-center justify-center rounded-[20px] bg-gradient-to-r from-[#B7A2FA] to-[#A994F2] text-[16px] font-extrabold text-white shadow-[0_12px_24px_rgba(171,150,242,0.24)] transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
                 >
-                  Go to Meva Hub
+                  Go to Hub
                 </a>
               </div>
             </>
@@ -247,7 +246,7 @@ export default function MevaPublicPage() {
                   href="/hub"
                   className="flex h-[56px] w-full items-center justify-center rounded-[20px] bg-[#EFE8FB] text-[16px] font-extrabold text-[#5A4D82] transition duration-200 hover:bg-[#E9E0FA]"
                 >
-                  Back to Meva Hub
+                  Back to Hub
                 </a>
               </div>
             </>
