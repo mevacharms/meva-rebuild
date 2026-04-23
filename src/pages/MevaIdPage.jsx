@@ -111,7 +111,12 @@ export default function MevaIdPage() {
       }
 
       try {
-        await getRedirectResult(auth);
+        const redirectResult = await getRedirectResult(auth);
+
+        if (redirectResult?.user && mounted) {
+          setUser(redirectResult.user);
+          setAuthMessage("");
+        }
       } catch (err) {
         console.error("Redirect sign-in failed:", err);
         if (!mounted) return;
@@ -164,7 +169,6 @@ export default function MevaIdPage() {
           id: "TEST",
           nickname: "Test Meva",
           realName: "Kibo",
-          bio: "This is the test Meva used to preview the public Meva experience.",
           imageUrl: KIBO_IMAGE_URL,
           isClaimed: false,
           tapCount: 18,
@@ -443,6 +447,7 @@ export default function MevaIdPage() {
         if (signInResult?.mode === "failed") return;
 
         if (signInResult?.mode === "popup" && signInResult.user) {
+          setUser(signInResult.user);
           await syncUserProfile();
           await claimMeva({ mevaId });
           await refreshCurrentMeva();
@@ -481,6 +486,7 @@ export default function MevaIdPage() {
         if (signInResult?.mode === "failed") return;
 
         if (signInResult?.mode === "popup" && signInResult.user) {
+          setUser(signInResult.user);
           await syncUserProfile();
           await unclaimMeva({ mevaId });
           await refreshCurrentMeva();
@@ -529,24 +535,11 @@ export default function MevaIdPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#EAF1FB] px-4 py-5 sm:px-5 sm:py-7">
-        {renderCardShell(
-          <>
-            <div className="mb-4 flex justify-center">
-              <div className="rounded-full border border-[#DBDDF0] bg-[#F4F6FD] px-4 py-1 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#6B5C96]">
-                Public Meva Page
-              </div>
-            </div>
-
-            <h1 className="mx-auto mt-5 max-w-[320px] text-center text-[28px] font-black leading-[1.02] tracking-[-0.03em] text-[#30215A] sm:text-[34px]">
-              Loading Meva...
-            </h1>
-
-            <p className="mx-auto mt-4 max-w-[330px] text-center text-[15px] leading-8 text-[#766F91] sm:text-[17px]">
-              Please wait while we load this Meva page.
-            </p>
-          </>
-        )}
+      <div className="min-h-screen bg-[#EAF1FB] flex items-center justify-center px-4">
+        <div className="text-center">
+          <p className="text-[20px] font-bold text-[#30215A]">Loading Meva...</p>
+          <p className="mt-2 text-[14px] text-[#766F91]">Please wait</p>
+        </div>
       </div>
     );
   }
@@ -569,15 +562,6 @@ export default function MevaIdPage() {
             <p className="mx-auto mt-4 max-w-[330px] text-center text-[15px] leading-8 text-[#766F91] sm:text-[17px]">
               {error}
             </p>
-
-            <div className="mt-5">
-              <a
-                href="/m"
-                className="flex h-[56px] w-full items-center justify-center rounded-[20px] bg-gradient-to-r from-[#B8A7F4] via-[#A18CF7] to-[#907AF4] text-[16px] font-extrabold text-white transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
-              >
-                Back to Meva
-              </a>
-            </div>
           </>
         )}
       </div>
@@ -602,24 +586,6 @@ export default function MevaIdPage() {
             <p className="mx-auto mt-4 max-w-[330px] text-center text-[15px] leading-8 text-[#766F91] sm:text-[17px]">
               This Meva ID does not exist yet.
             </p>
-
-            <div className="mt-6 rounded-[26px] border border-[#DCE3F1] bg-[#EEF4FD] p-5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
-              <p className="text-[13px] font-bold uppercase tracking-[0.14em] text-[#8A82A3]">
-                Attempted ID
-              </p>
-              <p className="mt-2 break-all text-[22px] font-black tracking-[0.08em] text-[#31205F]">
-                {mevaId || "UNKNOWN"}
-              </p>
-            </div>
-
-            <div className="mt-5">
-              <a
-                href="/m"
-                className="flex h-[56px] w-full items-center justify-center rounded-[20px] bg-gradient-to-r from-[#B8A7F4] via-[#A18CF7] to-[#907AF4] text-[16px] font-extrabold text-white transition duration-200 hover:scale-[1.01] active:scale-[0.99]"
-              >
-                Back to Meva
-              </a>
-            </div>
           </>
         )}
       </div>
@@ -692,12 +658,6 @@ export default function MevaIdPage() {
               </p>
             </div>
 
-            {mevaData?.bio ? (
-              <p className="mx-auto mt-5 max-w-[330px] text-center text-[15px] leading-7 text-[#766F91]">
-                {mevaData.bio}
-              </p>
-            ) : null}
-
             {authMessage ? (
               <p className="mt-5 text-center text-[14px] font-medium text-[#B45E7F]">
                 {authMessage}
@@ -738,13 +698,6 @@ export default function MevaIdPage() {
                   Sign Out
                 </button>
               ) : null}
-
-              <a
-                href="/m"
-                className="flex h-[56px] w-full items-center justify-center rounded-[20px] bg-[#EFE8FB] text-[16px] font-extrabold text-[#5A4D82] transition duration-200 hover:bg-[#E9E0FA]"
-              >
-                Back to Meva
-              </a>
             </div>
           </>
         )}
