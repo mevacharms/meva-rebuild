@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   browserLocalPersistence,
+  getRedirectResult,
   onAuthStateChanged,
   setPersistence,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -135,9 +137,68 @@ export default function MevaIdPage() {
       }
 
       try {
-        pushDebug(setDebugInfo, "redirect_disabled_boot_auth", {});
+        const redirectResult = await getRedirectResult(auth);
+
+        pushDebug(setDebugInfo, "redirect_result_checked", {
+          hasUser: !!redirectResult?.user,
+          uid: redirectResult?.user?.uid || null,
+          email: redirectResult?.user?.email || null,
+        });
+
+        if (redirectResult?.user && mounted) {
+          setUser(redirectResult.user);
+          setAuthMessage("");
+
+          try {
+            await syncUserProfile();
+
+            const pending = readPendingAction();
+
+            pushDebug(setDebugInfo, "redirect_pending_action", {
+              pending,
+              currentMevaId: mevaId,
+            });
+
+            if (pending?.mevaId === mevaId) {
+              if (pending.action === "claim") {
+                pushDebug(setDebugInfo, "redirect_claim_start", {
+                  mevaId,
+                  uid: redirectResult.user.uid,
+                  email: redirectResult.user.email,
+                });
+                await claimMeva({ mevaId });
+                pushDebug(setDebugInfo, "redirect_claim_done", { mevaId });
+              }
+
+              if (pending.action === "unclaim") {
+                pushDebug(setDebugInfo, "redirect_unclaim_start", {
+                  mevaId,
+                  uid: redirectResult.user.uid,
+                  email: redirectResult.user.email,
+                });
+                await unclaimMeva({ mevaId });
+                await signOut(auth);
+                pushDebug(setDebugInfo, "redirect_unclaim_done", { mevaId });
+              }
+
+              clearPendingAction();
+              await refreshCurrentMeva();
+              pushDebug(setDebugInfo, "redirect_refresh_done", { mevaId });
+            }
+          } catch (resumeErr) {
+            console.error("Redirect resume failed:", resumeErr);
+            pushDebug(setDebugInfo, "redirect_resume_failed", {
+              message: resumeErr?.message || null,
+              code: resumeErr?.code || null,
+            });
+          }
+        }
       } catch (err) {
-        console.error("Boot auth debug failed:", err);
+        console.error("Redirect sign-in failed:", err);
+        pushDebug(setDebugInfo, "redirect_failed", {
+          message: err?.message || null,
+          code: err?.code || null,
+        });
       }
     }
 
@@ -373,8 +434,6 @@ export default function MevaIdPage() {
     });
 
     try {
-      await setPersistence(auth, browserLocalPersistence);
-
       pushDebug(setDebugInfo, "popup_sign_in_start", {
         mevaId,
       });
@@ -398,11 +457,35 @@ export default function MevaIdPage() {
         code: popupErr?.code || null,
       });
 
+      if (popupErr?.code === "auth/popup-blocked") {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+
+          return {
+            mode: "redirect",
+            user: null,
+          };
+        } catch (redirectErr) {
+          console.error("Redirect sign-in failed:", redirectErr);
+
+          pushDebug(setDebugInfo, "redirect_sign_in_failed", {
+            message: redirectErr?.message || null,
+            code: redirectErr?.code || null,
+          });
+
+          clearPendingAction();
+          setAuthMessage("Google sign-in failed. Please try again.");
+
+          return {
+            mode: "failed",
+            user: null,
+          };
+        }
+      }
+
       clearPendingAction();
 
-      if (popupErr?.code === "auth/popup-blocked") {
-        setAuthMessage("Popup was blocked. Please allow popups and try again.");
-      } else if (popupErr?.code === "auth/popup-closed-by-user") {
+      if (popupErr?.code === "auth/popup-closed-by-user") {
         setAuthMessage("Google sign-in was closed before it finished.");
       } else if (popupErr?.code === "auth/cancelled-popup-request") {
         setAuthMessage("Google sign-in was cancelled. Please try again.");
@@ -432,9 +515,8 @@ export default function MevaIdPage() {
         currentUserEmail: user?.email || null,
         viewerState,
       });
-      await trackInteraction("claim_click");
-
       if (!user) {
+        trackInteraction("claim_click");
         const signInResult = await beginGoogleSignIn("claim");
 
         if (signInResult?.mode === "redirect") return;
@@ -459,6 +541,7 @@ export default function MevaIdPage() {
         return;
       }
 
+      trackInteraction("claim_click");
       await claimMeva({ mevaId });
       await refreshCurrentMeva();
       setAuthMessage("");
@@ -479,7 +562,7 @@ export default function MevaIdPage() {
       setActionLoading(true);
       setActionMessage("");
       setAuthMessage("");
-      await trackInteraction("unclaim_click");
+      trackInteraction("unclaim_click");
 
       if (!user) {
         const signInResult = await beginGoogleSignIn("unclaim");
