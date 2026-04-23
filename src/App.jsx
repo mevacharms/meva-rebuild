@@ -1,5 +1,6 @@
 import MevaLandingPage from "./pages/MevaLandingPage";
-import MevaPublicPage from "./pages/MevaPublicPage";
+import MevaHubPage from "./pages/MevaHubPage";
+import MevaIdPage from "./pages/MevaIdPage";
 
 export default function App() {
   const rawPath = window.location.pathname;
@@ -8,8 +9,12 @@ export default function App() {
       ? rawPath.slice(0, -1)
       : rawPath;
 
-  if (path === "/m" || path.startsWith("/m/")) {
-    return <MevaPublicPage />;
+  if (path === "/m") {
+    return <MevaHubPage />;
+  }
+
+  if (path.startsWith("/m/")) {
+    return <MevaIdPage />;
   }
 
   return <MevaLandingPage />;
