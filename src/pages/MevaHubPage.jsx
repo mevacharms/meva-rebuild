@@ -41,19 +41,19 @@ export default function MevaHubPage() {
     <>
       <div className="min-h-screen bg-[#E9F1FB] px-4 py-5 sm:px-5 sm:py-7">
         <div className="mx-auto flex min-h-screen w-full max-w-[470px] items-center justify-center sm:max-w-[500px]">
-          <div className="relative w-full rounded-[34px] border border-white/80 bg-[#FFFDFE] px-5 pb-5 pt-7 shadow-[0_20px_70px_rgba(95,72,150,0.11)] sm:px-6 sm:pb-6 sm:pt-8">
-            <a
-              href="/"
-              aria-label="Go to Meva landing page"
-              className="absolute left-1 top-0 sm:-left-7 sm:-top-7"
-            >
-              <img
-                src={MEVA_LOGO_URL}
-                alt="Meva logo"
-                className="h-[90px] w-auto object-contain sm:h-[150px]"
-                draggable="false"
-              />
-            </a>
+          <div className="relative w-full rounded-[34px] border border-white/80 bg-[#F7FAFF] px-5 pb-5 pt-7 shadow-[0_20px_70px_rgba(95,72,150,0.11)] sm:px-6 sm:pb-6 sm:pt-8">
+          <a
+  href="/"
+  aria-label="Go to Meva landing page"
+  className="absolute -left-2 -top-2 sm:-left-7 sm:-top-7"
+>
+  <img
+    src={MEVA_LOGO_URL}
+    alt="Meva logo"
+    className="h-[100px] w-auto object-contain sm:h-[150px]"
+    draggable="false"
+  />
+</a>
 
             <div className="mb-4 flex justify-center">
               <div className="rounded-full border border-[#E9E0F7] bg-[#FBF8FF] px-4 py-1 text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#6B5C96]">
