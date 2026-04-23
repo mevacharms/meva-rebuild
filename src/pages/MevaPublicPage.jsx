@@ -379,7 +379,7 @@ export default function MevaPublicPage() {
   };
   
   const getClientContext = async () => {
-    const base = {
+    return {
       location: {
         latitude: null,
         longitude: null,
@@ -397,32 +397,6 @@ export default function MevaPublicPage() {
         referrer: document.referrer || null,
       },
     };
-  
-    if (!navigator.geolocation) {
-      return base;
-    }
-  
-    return new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          resolve({
-            ...base,
-            location: {
-              ...base.location,
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-              accuracy: position.coords.accuracy,
-            },
-          });
-        },
-        () => resolve(base),
-        {
-          enableHighAccuracy: false,
-          timeout: 2500,
-          maximumAge: 300000,
-        }
-      );
-    });
   };
   
   const trackInteraction = async (eventType, extraMetadata = {}) => {
@@ -562,18 +536,7 @@ export default function MevaPublicPage() {
           enter a Meva ID to open one directly.
         </p>
 
-        <div className="mt-6 flex justify-center">
-          <div className="relative flex h-[146px] w-[146px] items-center justify-center">
-            <div className="absolute h-[122px] w-[122px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F2ECFF_0%,#DDD2FF_38%,#C6C7FF_70%,#AECFFF_100%)]" />
-            <img
-              src={KIBO_IMAGE_URL}
-              alt="Kibo"
-              draggable="false"
-              className="relative z-10 h-[108px] w-auto select-none object-contain"
-              style={{ animation: "mevaFloat 3.6s ease-in-out infinite" }}
-            />
-          </div>
-        </div>
+        <div className="mt-6" />
 
         <button
           type="button"
@@ -611,7 +574,7 @@ export default function MevaPublicPage() {
           </div>
 
           <div className="mt-3 text-[14px] leading-6 text-[#7E83A0]">
-            <p>Example: EDALINET</p>
+            <p>Example: P1K8XJ6Z</p>
             <p>Meva IDs are generally on the back of the Meva.</p>
             {showInputError ? (
               <p className="mt-1 font-medium text-[#C45C77]">
