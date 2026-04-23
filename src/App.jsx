@@ -1,14 +1,5 @@
-import { useEffect } from "react";
 import MevaLandingPage from "./pages/MevaLandingPage";
 import MevaPublicPage from "./pages/MevaPublicPage";
-
-function HubRedirect() {
-  useEffect(() => {
-    window.location.replace("/m");
-  }, []);
-
-  return null;
-}
 
 export default function App() {
   const rawPath = window.location.pathname;
@@ -17,13 +8,11 @@ export default function App() {
       ? rawPath.slice(0, -1)
       : rawPath;
 
-  if (path === "/hub") {
-    return <HubRedirect />;
-  }
-
+  // Meva system
   if (path === "/m" || path.startsWith("/m/")) {
     return <MevaPublicPage />;
   }
 
+  // Landing page
   return <MevaLandingPage />;
 }
