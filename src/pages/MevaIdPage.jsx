@@ -480,7 +480,7 @@ export default function MevaIdPage() {
       if (popupErr?.code === "auth/popup-blocked") {
         clearPendingAction();
         setAuthMessage(
-          "Browser blocked the Google sign-in popup. Please allow popups for this site and try again."
+          "Google sign-in popup was blocked. On desktop, allow popups for this site, turn off Tracking Prevention for this page if needed, then refresh and try again."
         );
 
         return {
