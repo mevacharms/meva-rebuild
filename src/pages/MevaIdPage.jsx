@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   browserLocalPersistence,
+  getRedirectResult,
   onAuthStateChanged,
   setPersistence,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -13,8 +15,30 @@ import { auth, db, functions, googleProvider } from "../firebase";
 const KIBO_IMAGE_URL =
   "https://firebasestorage.googleapis.com/v0/b/meva-clean.firebasestorage.app/o/mevas%2FKibo%2FKibo.png?alt=media&token=82c12f12-2989-49dc-ae73-59ee0577c3a8";
 
-const MEVA_LOGO_URL =
+  const MEVA_LOGO_URL =
   "https://firebasestorage.googleapis.com/v0/b/meva-clean.firebasestorage.app/o/brand%2FLogo.png?alt=media&token=dc0fef03-4c72-4a08-967e-0ffa9b55c39a";
+
+const PENDING_ACTION_KEY = "meva_pending_action";
+
+function savePendingAction(action, mevaId) {
+  localStorage.setItem(
+    PENDING_ACTION_KEY,
+    JSON.stringify({ action, mevaId, createdAt: Date.now() })
+  );
+}
+
+function readPendingAction() {
+  try {
+    const raw = localStorage.getItem(PENDING_ACTION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingAction() {
+  localStorage.removeItem(PENDING_ACTION_KEY);
+}
 
 function getMevaIdFromPath() {
   const rawPath = window.location.pathname;
@@ -126,7 +150,37 @@ export default function MevaIdPage() {
         });
       }
 
-      pushDebug(setDebugInfo, "redirect_disabled", {});
+      try {
+        const redirectResult = await getRedirectResult(auth);
+
+        pushDebug(setDebugInfo, "redirect_result_checked", {
+          hasUser: !!redirectResult?.user,
+          uid: redirectResult?.user?.uid || null,
+          email: redirectResult?.user?.email || null,
+        });
+
+        if (redirectResult?.user) {
+          const pending = readPendingAction();
+          setUser(redirectResult.user);
+          await syncUserProfile();
+
+          if (pending?.mevaId === mevaId) {
+            if (pending.action === "claim") await claimMeva({ mevaId });
+            if (pending.action === "unclaim") {
+              await unclaimMeva({ mevaId });
+              await signOut(auth);
+            }
+
+            clearPendingAction();
+            await refreshCurrentMeva();
+          }
+        }
+      } catch (err) {
+        pushDebug(setDebugInfo, "redirect_result_failed", {
+          message: err?.message || null,
+          code: err?.code || null,
+        });
+      }
     }
 
     bootAuth();
@@ -350,6 +404,12 @@ export default function MevaIdPage() {
 
   const beginGoogleSignIn = async (pendingAction) => {
     try {
+      if (!isMobileLike()) {
+        savePendingAction(pendingAction, mevaId);
+        await signInWithRedirect(auth, googleProvider);
+        return { mode: "redirect", user: null };
+      }
+
       const popupResult = await signInWithPopup(auth, googleProvider);
   
       pushDebug(setDebugInfo, "popup_sign_in_success", {
@@ -413,6 +473,7 @@ export default function MevaIdPage() {
         const signInResult = await beginGoogleSignIn("claim");
 
         if (signInResult?.mode === "failed") return;
+        if (signInResult?.mode === "redirect") return;
 
         if (signInResult?.mode === "popup" && signInResult.user) {
 
@@ -498,6 +559,7 @@ export default function MevaIdPage() {
         const signInResult = await beginGoogleSignIn("unclaim");
 
         if (signInResult?.mode === "failed") return;
+        if (signInResult?.mode === "redirect") return;
 
         if (signInResult?.mode === "popup" && signInResult.user) {
 
