@@ -51,7 +51,6 @@ function isMobileOrTabletFromDevice(device = {}, metadata = {}) {
   if (parts.length === 2 && parts.every((value) => Number.isFinite(value))) {
     const shortestSide = Math.min(parts[0], parts[1]);
     const longestSide = Math.max(parts[0], parts[1]);
-
     return shortestSide <= 1024 && longestSide <= 1400;
   }
 
@@ -122,6 +121,35 @@ function assertValidLeaderboardName(name) {
   }
 }
 
+function normalizeNickname(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 18);
+}
+
+function assertValidNickname(name) {
+  if (!/^[A-Za-z0-9 ]{1,18}$/.test(name)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Nickname must be 1–18 letters or numbers."
+    );
+  }
+
+  const blocked = ["admin", "meva", "mod", "owner", "fuck", "shit", "bitch"];
+  const lower = name.toLowerCase();
+
+  if (blocked.some((word) => lower.includes(word))) {
+    throw new HttpsError("invalid-argument", "Choose a different nickname.");
+  }
+}
+
+function generateNickname(realName = "Kibo") {
+  const extras = ["Buddy", "Star", "Cloud", "Mochi", "Nova", "Lucky"];
+  const extra = extras[Math.floor(Math.random() * extras.length)];
+  return `${realName}${extra}`.slice(0, 18);
+}
+
 async function createEvent({
   eventType,
   mevaId,
@@ -171,17 +199,6 @@ exports.getMevaViewerState = onCall(async (request) => {
     claimSnap.exists &&
     claimData?.ownerUid === request.auth.uid;
 
-  console.log("getMevaViewerState", {
-    mevaId,
-    authUid: request.auth?.uid || null,
-    authEmail: request.auth?.token?.email || null,
-    isSignedIn,
-    isClaimed,
-    claimOwnerUid: claimData?.ownerUid || null,
-    claimOwnerEmail: claimData?.ownerEmail || null,
-    isOwner,
-  });
-
   return {
     isSignedIn,
     isClaimed,
@@ -228,30 +245,12 @@ exports.claimMeva = onCall(async (request) => {
   const claimRef = db.collection("mevaClaims").doc(mevaId);
   const userRef = db.collection("users").doc(request.auth.uid);
 
-  console.log("claimMeva_start", {
-    mevaId,
-    authUid: request.auth.uid,
-    authEmail: request.auth.token.email || null,
-  });
-
   await db.runTransaction(async (tx) => {
     const [mevaSnap, claimSnap, userSnap] = await Promise.all([
       tx.get(mevaRef),
       tx.get(claimRef),
       tx.get(userRef),
     ]);
-
-    console.log("claimMeva_transaction_state", {
-      mevaId,
-      mevaExists: mevaSnap.exists,
-      alreadyClaimed: claimSnap.exists,
-      existingOwnerUid: claimSnap.exists
-        ? claimSnap.data()?.ownerUid || null
-        : null,
-      existingOwnerEmail: claimSnap.exists
-        ? claimSnap.data()?.ownerEmail || null
-        : null,
-    });
 
     if (!mevaSnap.exists) {
       throw new HttpsError("not-found", "This Meva does not exist.");
@@ -262,6 +261,8 @@ exports.claimMeva = onCall(async (request) => {
     }
 
     const now = FieldValue.serverTimestamp();
+    const userData = userSnap.exists ? userSnap.data() : {};
+    const nextClaimedCount = Math.max(0, userData.claimedMevaCount || 0) + 1;
 
     tx.set(
       claimRef,
@@ -281,6 +282,7 @@ exports.claimMeva = onCall(async (request) => {
       mevaRef,
       {
         isClaimed: true,
+        ownerUid: request.auth.uid,
         updatedAt: now,
       },
       { merge: true }
@@ -293,9 +295,34 @@ exports.claimMeva = onCall(async (request) => {
         email: request.auth.token.email || null,
         displayName: request.auth.token.name || null,
         photoURL: request.auth.token.picture || null,
-        createdAt: userSnap.exists ? userSnap.data().createdAt || now : now,
+        claimedMevaCount: nextClaimedCount,
+        hasClaimedMeva: true,
+        createdAt: userSnap.exists ? userData.createdAt || now : now,
         updatedAt: now,
         lastSignInAt: now,
+      },
+      { merge: true }
+    );
+
+    tx.set(
+      db.collection("mevaLeaderboardAllTime").doc(request.auth.uid),
+      {
+        uid: request.auth.uid,
+        hasClaimedMeva: true,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+
+    tx.set(
+      db
+        .collection("mevaLeaderboardWeekly")
+        .doc(`${getEasternWeekKey()}_${request.auth.uid}`),
+      {
+        uid: request.auth.uid,
+        weekKey: getEasternWeekKey(),
+        hasClaimedMeva: true,
+        updatedAt: now,
       },
       { merge: true }
     );
@@ -309,10 +336,102 @@ exports.claimMeva = onCall(async (request) => {
     isAuthenticated: true,
   });
 
-  console.log("claimMeva_success", {
+  return {
+    success: true,
     mevaId,
-    authUid: request.auth.uid,
-    authEmail: request.auth.token.email || null,
+  };
+});
+
+exports.unclaimMeva = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must sign in first.");
+  }
+
+  const mevaId = normalizeMevaId(request.data?.mevaId);
+  assertValidMevaId(mevaId);
+
+  const mevaRef = db.collection("mevas").doc(mevaId);
+  const claimRef = db.collection("mevaClaims").doc(mevaId);
+  const userRef = db.collection("users").doc(request.auth.uid);
+
+  await db.runTransaction(async (tx) => {
+    const [mevaSnap, claimSnap, userSnap] = await Promise.all([
+      tx.get(mevaRef),
+      tx.get(claimRef),
+      tx.get(userRef),
+    ]);
+
+    if (!mevaSnap.exists) {
+      throw new HttpsError("not-found", "This Meva does not exist.");
+    }
+
+    if (!claimSnap.exists) {
+      throw new HttpsError("failed-precondition", "This Meva is not claimed.");
+    }
+
+    const claimData = claimSnap.data();
+
+    if (claimData.ownerUid !== request.auth.uid) {
+      throw new HttpsError(
+        "permission-denied",
+        "Only the current owner can unclaim this Meva."
+      );
+    }
+
+    const userData = userSnap.exists ? userSnap.data() : {};
+    const nextClaimedCount = Math.max(0, (userData.claimedMevaCount || 1) - 1);
+    const hasClaimedMeva = nextClaimedCount > 0;
+    const now = FieldValue.serverTimestamp();
+
+    tx.delete(claimRef);
+
+    tx.set(
+      mevaRef,
+      {
+        isClaimed: false,
+        ownerUid: null,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+
+    tx.set(
+      userRef,
+      {
+        claimedMevaCount: nextClaimedCount,
+        hasClaimedMeva,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+
+    tx.set(
+      db.collection("mevaLeaderboardAllTime").doc(request.auth.uid),
+      {
+        hasClaimedMeva,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+
+    tx.set(
+      db
+        .collection("mevaLeaderboardWeekly")
+        .doc(`${getEasternWeekKey()}_${request.auth.uid}`),
+      {
+        hasClaimedMeva,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+  });
+
+  await createEvent({
+    eventType: "unclaim",
+    mevaId,
+    actorUid: request.auth.uid,
+    actorEmail: request.auth.token.email || null,
+    isAuthenticated: true,
   });
 
   return {
@@ -321,7 +440,7 @@ exports.claimMeva = onCall(async (request) => {
   };
 });
 
-exports.unclaimMeva = onCall(async (request) => {
+exports.setMevaNickname = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must sign in first.");
   }
@@ -342,35 +461,34 @@ exports.unclaimMeva = onCall(async (request) => {
       throw new HttpsError("not-found", "This Meva does not exist.");
     }
 
-    if (!claimSnap.exists) {
-      throw new HttpsError("failed-precondition", "This Meva is not claimed.");
-    }
-
-    const claimData = claimSnap.data();
-
-    if (claimData.ownerUid !== request.auth.uid) {
+    if (!claimSnap.exists || claimSnap.data()?.ownerUid !== request.auth.uid) {
       throw new HttpsError(
         "permission-denied",
-        "Only the current owner can unclaim this Meva."
+        "Only the owner can rename this Meva."
       );
     }
 
-    const now = FieldValue.serverTimestamp();
+    const mevaData = mevaSnap.data() || {};
+    const realName = normalizeNickname(mevaData.realName || "Kibo");
+    const nickname =
+      request.data?.generate === true
+        ? generateNickname(realName)
+        : normalizeNickname(request.data?.nickname);
 
-    tx.delete(claimRef);
+    assertValidNickname(nickname);
 
     tx.set(
       mevaRef,
       {
-        isClaimed: false,
-        updatedAt: now,
+        nickname,
+        updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true }
     );
   });
 
   await createEvent({
-    eventType: "unclaim",
+    eventType: "rename",
     mevaId,
     actorUid: request.auth.uid,
     actorEmail: request.auth.token.email || null,
@@ -379,7 +497,6 @@ exports.unclaimMeva = onCall(async (request) => {
 
   return {
     success: true,
-    mevaId,
   };
 });
 
@@ -479,128 +596,130 @@ exports.logMevaInteraction = onCall(async (request) => {
     } else {
       const tapGuardRef = db
         .collection("mevaTapGuards")
-        .doc(getTapKey({
-          mevaId,
-          actorUid: request.auth?.uid || null,
-          sessionId: safeMetadata.sessionId,
-        }));
+        .doc(
+          getTapKey({
+            mevaId,
+            actorUid: request.auth?.uid || null,
+            sessionId: safeMetadata.sessionId,
+          })
+        );
 
-        await db.runTransaction(async (tx) => {
-          const guardSnap = await tx.get(tapGuardRef);
-          const nowMs = Date.now();
-          const lastTapMs = guardSnap.exists
-            ? guardSnap.data()?.lastTapMs || 0
-            : 0;
-  
-          const msSinceLastTap = lastTapMs ? nowMs - lastTapMs : 0;
-  
-          const previousIntervals = guardSnap.exists
-            ? guardSnap.data()?.intervals || []
-            : [];
-  
-          const newIntervals = lastTapMs
-            ? [...previousIntervals, msSinceLastTap].slice(-6)
-            : [];
-  
-          const isTooConsistent =
-            newIntervals.length >= 5 &&
-            newIntervals.every(
-              (val, i, arr) => i === 0 || Math.abs(val - arr[i - 1]) < 10
-            );
-  
-          const isExtremeSpam = lastTapMs && msSinceLastTap < 50;
-  
-          if (isTooConsistent || isExtremeSpam) {
-            countBlockReason = isTooConsistent ? "bot_pattern" : "extreme_spam";
-  
-            tx.set(
-              tapGuardRef,
-              {
-                mevaId,
-                actorUid: request.auth?.uid || null,
-                sessionId: safeMetadata.sessionId,
-                intervals: newIntervals,
-                lastRejectedTapMs: nowMs,
-                rejectedTapCount: FieldValue.increment(1),
-                updatedAt: FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            );
-  
-            return;
-          }
-  
-          counted = true;
-  
+      await db.runTransaction(async (tx) => {
+        const guardSnap = await tx.get(tapGuardRef);
+        const nowMs = Date.now();
+        const lastTapMs = guardSnap.exists
+          ? guardSnap.data()?.lastTapMs || 0
+          : 0;
+
+        const msSinceLastTap = lastTapMs ? nowMs - lastTapMs : 0;
+        const previousIntervals = guardSnap.exists
+          ? guardSnap.data()?.intervals || []
+          : [];
+        const newIntervals = lastTapMs
+          ? [...previousIntervals, msSinceLastTap].slice(-6)
+          : [];
+
+        const isTooConsistent =
+          newIntervals.length >= 5 &&
+          newIntervals.every(
+            (val, i, arr) => i === 0 || Math.abs(val - arr[i - 1]) < 10
+          );
+
+        const isExtremeSpam = lastTapMs && msSinceLastTap < 50;
+
+        if (isTooConsistent || isExtremeSpam) {
+          countBlockReason = isTooConsistent ? "bot_pattern" : "extreme_spam";
+
           tx.set(
             tapGuardRef,
             {
               mevaId,
               actorUid: request.auth?.uid || null,
               sessionId: safeMetadata.sessionId,
-              lastTapMs: nowMs,
               intervals: newIntervals,
-              acceptedTapCount: FieldValue.increment(1),
+              lastRejectedTapMs: nowMs,
+              rejectedTapCount: FieldValue.increment(1),
               updatedAt: FieldValue.serverTimestamp(),
             },
             { merge: true }
           );
-  
-          if (isOwner) {
-            tx.set(
-              mevaRef,
-              {
-                ownerTapCount: FieldValue.increment(1),
-                ownerCountedTapTotal: FieldValue.increment(1),
-                countedTapTotal: FieldValue.increment(1),
-                updatedAt: FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            );
 
-            if (request.auth?.uid) {
-              const weekKey = getEasternWeekKey();
-              const allTimeRef = db
-                .collection("mevaLeaderboardAllTime")
-                .doc(request.auth.uid);
-              const weeklyRef = db
-                .collection("mevaLeaderboardWeekly")
-                .doc(`${weekKey}_${request.auth.uid}`);
+          return;
+        }
 
-              tx.set(
-                allTimeRef,
-                {
-                  uid: request.auth.uid,
-                  score: FieldValue.increment(1),
-                  updatedAt: FieldValue.serverTimestamp(),
-                },
-                { merge: true }
-              );
+        counted = true;
 
-              tx.set(
-                weeklyRef,
-                {
-                  uid: request.auth.uid,
-                  weekKey,
-                  score: FieldValue.increment(1),
-                  updatedAt: FieldValue.serverTimestamp(),
-                },
-                { merge: true }
-              );
-            }
-          } else {
-            tx.set(
-              mevaRef,
-              {
-                visitorTapCount: FieldValue.increment(1),
-                visitorCountedTapTotal: FieldValue.increment(1),
-                countedTapTotal: FieldValue.increment(1),
-                updatedAt: FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            );
-          }
-        });
+        tx.set(
+          tapGuardRef,
+          {
+            mevaId,
+            actorUid: request.auth?.uid || null,
+            sessionId: safeMetadata.sessionId,
+            lastTapMs: nowMs,
+            intervals: newIntervals,
+            acceptedTapCount: FieldValue.increment(1),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        if (isOwner) {
+          const userRef = db.collection("users").doc(request.auth.uid);
+          const userSnap = await tx.get(userRef);
+          const userData = userSnap.exists ? userSnap.data() : {};
+          const leaderboardName =
+            userData.leaderboardName || generateLeaderboardName();
+          const hasClaimedMeva = userData.hasClaimedMeva !== false;
+          const weekKey = getEasternWeekKey();
+
+          tx.set(
+            mevaRef,
+            {
+              ownerTapCount: FieldValue.increment(1),
+              ownerCountedTapTotal: FieldValue.increment(1),
+              countedTapTotal: FieldValue.increment(1),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+          tx.set(
+            db.collection("mevaLeaderboardAllTime").doc(request.auth.uid),
+            {
+              uid: request.auth.uid,
+              score: FieldValue.increment(1),
+              leaderboardName,
+              hasClaimedMeva,
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+          tx.set(
+            db.collection("mevaLeaderboardWeekly").doc(`${weekKey}_${request.auth.uid}`),
+            {
+              uid: request.auth.uid,
+              weekKey,
+              score: FieldValue.increment(1),
+              leaderboardName,
+              hasClaimedMeva,
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } else {
+          tx.set(
+            mevaRef,
+            {
+              visitorTapCount: FieldValue.increment(1),
+              visitorCountedTapTotal: FieldValue.increment(1),
+              countedTapTotal: FieldValue.increment(1),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+      });
     }
   }
 
@@ -637,33 +756,60 @@ exports.getMevaLeaderboard = onCall(async (request) => {
   const type = String(request.data?.type || "allTime");
   const weekKey = getEasternWeekKey();
 
+  if (type === "mostVisited") {
+    const snap = await db
+      .collection("mevas")
+      .orderBy("tapCount", "desc")
+      .limit(50)
+      .get();
+
+    const rows = snap.docs
+      .map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          uid: docSnap.id,
+          mevaId: docSnap.id,
+          score: data.tapCount || 0,
+          leaderboardName: data.nickname || data.realName || docSnap.id,
+          isClaimed: data.isClaimed === true,
+        };
+      })
+      .filter((row) => row.isClaimed)
+      .slice(0, 25);
+
+    return {
+      type,
+      weekKey,
+      rows,
+    };
+  }
+
   const source =
     type === "weekly"
       ? db
           .collection("mevaLeaderboardWeekly")
           .where("weekKey", "==", weekKey)
           .orderBy("score", "desc")
-          .limit(25)
+          .limit(50)
       : db
           .collection("mevaLeaderboardAllTime")
           .orderBy("score", "desc")
-          .limit(25);
+          .limit(50);
 
   const snap = await source.get();
-  const rows = [];
 
-  for (const docSnap of snap.docs) {
-    const data = docSnap.data();
-    const userSnap = await db.collection("users").doc(data.uid).get();
-    const userData = userSnap.exists ? userSnap.data() : {};
-
-    rows.push({
-      uid: data.uid,
-      score: data.score || 0,
-      leaderboardName:
-        userData.leaderboardName || generateLeaderboardName(),
-    });
-  }
+  const rows = snap.docs
+    .map((docSnap) => {
+      const data = docSnap.data();
+      return {
+        uid: data.uid || docSnap.id,
+        score: data.score || 0,
+        leaderboardName: data.leaderboardName || generateLeaderboardName(),
+        hasClaimedMeva: data.hasClaimedMeva === true,
+      };
+    })
+    .filter((row) => row.hasClaimedMeva)
+    .slice(0, 25);
 
   return {
     type,
@@ -696,21 +842,53 @@ exports.setMevaLeaderboardName = onCall(async (request) => {
   if (!hasFreeChange && nowMs - lastChangedMs < fourteenDaysMs) {
     throw new HttpsError(
       "failed-precondition",
-      "You can change your leaderboard name once every 14 days."
+      "You can change your leaderboard name once every 14 days.",
+      {
+        cooldownRemainingMs: lastChangedMs + fourteenDaysMs - nowMs,
+      }
     );
   }
 
-  await userRef.set(
-    {
-      leaderboardName: requestedName,
-      leaderboardNameLower: requestedName.toLowerCase(),
-      freeLeaderboardNameChangeAvailable: false,
-      leaderboardNameUpdatedAt: FieldValue.serverTimestamp(),
-      leaderboardNameUpdatedAtMs: nowMs,
-      updatedAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
+  const hasClaimedMeva = userData.hasClaimedMeva === true;
+  const weekKey = getEasternWeekKey();
+
+  await db.runTransaction(async (tx) => {
+    tx.set(
+      userRef,
+      {
+        leaderboardName: requestedName,
+        leaderboardNameLower: requestedName.toLowerCase(),
+        freeLeaderboardNameChangeAvailable: false,
+        leaderboardNameUpdatedAt: FieldValue.serverTimestamp(),
+        leaderboardNameUpdatedAtMs: nowMs,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    tx.set(
+      db.collection("mevaLeaderboardAllTime").doc(request.auth.uid),
+      {
+        uid: request.auth.uid,
+        leaderboardName: requestedName,
+        hasClaimedMeva,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    tx.set(
+      db.collection("mevaLeaderboardWeekly").doc(`${weekKey}_${request.auth.uid}`),
+      {
+        uid: request.auth.uid,
+        weekKey,
+        leaderboardName: requestedName,
+        hasClaimedMeva,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  });
 
   return {
     success: true,
@@ -778,6 +956,7 @@ exports.getMevaAnalyticsSummary = onCall(async (request) => {
     tapCount: mevaData?.tapCount || 0,
     ownerTapCount: mevaData?.ownerTapCount || 0,
     visitorTapCount: mevaData?.visitorTapCount || 0,
+    countedTapTotal: mevaData?.countedTapTotal || 0,
     isClaimed: !!mevaData?.isClaimed,
   };
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   browserLocalPersistence,
   getRedirectResult,
@@ -201,8 +201,21 @@ export default function MevaIdPage() {
   const [weeklyResetText, setWeeklyResetText] = useState(
     formatDuration(getWeeklyResetMs())
   );
-  const [tapBurst, setTapBurst] = useState([]);
   const [tapBounce, setTapBounce] = useState(false);
+  const [mevaMood, setMevaMood] = useState("calm");
+  const [mevaPos, setMevaPos] = useState({ x: 0, y: 0 });
+  const [draggingMeva, setDraggingMeva] = useState(false);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [renameMessage, setRenameMessage] = useState("");
+  const [renamingMeva, setRenamingMeva] = useState(false);
+  const dragRef = useRef({
+    active: false,
+    moved: false,
+    startX: 0,
+    startY: 0,
+    baseX: 0,
+    baseY: 0,
+  });
 
   const isDebug =
     new URLSearchParams(window.location.search).get("debug") === "1";
@@ -231,6 +244,10 @@ export default function MevaIdPage() {
   );
   const setMevaLeaderboardName = useMemo(
     () => httpsCallable(functions, "setMevaLeaderboardName"),
+    []
+  );
+  const setMevaNickname = useMemo(
+    () => httpsCallable(functions, "setMevaNickname"),
     []
   );
 
@@ -402,7 +419,10 @@ export default function MevaIdPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const displayName = mevaData?.realName || mevaData?.nickname || "Unnamed Meva";
+  const displayName =
+    mevaData?.nickname && String(mevaData.nickname).toLowerCase() !== "edaline"
+      ? mevaData.nickname
+      : mevaData?.realName || "Kibo";
   const imageUrl = mevaData?.imageUrl || KIBO_IMAGE_URL;
   const isMobileDevice = isMobileLike();
   const primaryButtonLabel = viewerState.isClaimed ? "Unclaim Meva" : "Claim Meva";
@@ -681,9 +701,8 @@ export default function MevaIdPage() {
   };
 
   const handleTap = async () => {
-    const id = `${Date.now()}-${Math.random()}`;
     setTapBounce(true);
-    setTapBurst((prev) => [...prev, id].slice(-4));
+    setMevaMood("happy");
     setMevaData((prev) =>
       prev
         ? {
@@ -693,21 +712,85 @@ export default function MevaIdPage() {
         : prev
     );
 
-    window.setTimeout(() => setTapBounce(false), 180);
-    window.setTimeout(() => {
-      setTapBurst((prev) => prev.filter((item) => item !== id));
-    }, 700);
+    window.setTimeout(() => setTapBounce(false), 220);
+    window.setTimeout(() => setMevaMood("calm"), 900);
 
     await trackInteraction("tap");
   };
 
+  const handleMevaPointerDown = (e) => {
+    e.preventDefault();
+
+    dragRef.current = {
+      active: true,
+      moved: false,
+      startX: e.clientX,
+      startY: e.clientY,
+      baseX: mevaPos.x,
+      baseY: mevaPos.y,
+    };
+
+    setDraggingMeva(true);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+
+  const handleMevaPointerMove = (e) => {
+    if (!dragRef.current.active) return;
+
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+      dragRef.current.moved = true;
+    }
+
+    setMevaPos({
+      x: Math.max(-110, Math.min(110, dragRef.current.baseX + dx)),
+      y: Math.max(-150, Math.min(130, dragRef.current.baseY + dy)),
+    });
+  };
+
+  const handleMevaPointerUp = async (e) => {
+    const shouldTap = dragRef.current.active && !dragRef.current.moved;
+
+    dragRef.current.active = false;
+    setDraggingMeva(false);
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+
+    if (shouldTap) {
+      await handleTap();
+    } else {
+      await trackInteraction("drag_end");
+    }
+  };
+
+  const saveMevaNickname = async (payload) => {
+    try {
+      setRenamingMeva(true);
+      setRenameMessage("");
+
+      const res = await setMevaNickname({ mevaId, ...payload });
+      const nickname = res.data?.nickname || payload.nickname || "Kibo";
+
+      setMevaData((prev) => (prev ? { ...prev, nickname } : prev));
+      setRenameDraft(nickname);
+      setRenameMessage("Name saved.");
+
+      await refreshCurrentMeva();
+    } catch (err) {
+      setRenameMessage(err?.message || "Could not rename this Meva.");
+    } finally {
+      setRenamingMeva(false);
+    }
+  };
+
   const renderMainShell = (content) => (
-    <div className="relative mx-auto min-h-[calc(100vh-20px)] w-full max-w-[430px] overflow-hidden select-none [-webkit-user-select:none] [-webkit-touch-callout:none]">
-      <a href="/m" aria-label="Back to Meva" className="absolute left-0 top-[54px] z-20">
+    <div className="relative mx-auto h-[100dvh] max-h-[100dvh] w-full max-w-[430px] overflow-hidden select-none [-webkit-user-select:none] [-webkit-touch-callout:none]">
+      <a href="/m" aria-label="Back to Meva" className="absolute left-2 top-4 z-20">
         <img
           src={MEVA_LOGO_URL}
           alt="Meva logo"
-          className="h-[142px] w-auto object-contain select-none pointer-events-none"
+          className="h-[66px] w-auto object-contain select-none pointer-events-none"
           draggable="false"
         />
       </a>
@@ -716,7 +799,7 @@ export default function MevaIdPage() {
         type="button"
         aria-label="Open menu"
         onClick={() => setPanel("menu")}
-        className="absolute right-[18px] top-[46px] z-20 flex h-[66px] w-[66px] items-center justify-center rounded-full bg-white/90 text-[31px] font-black text-[#6B5C96] shadow-[0_16px_42px_rgba(95,72,150,0.12)]"
+        className="absolute right-3 top-4 z-20 flex h-[60px] w-[60px] items-center justify-center rounded-full bg-white/90 text-[28px] font-black text-[#6B5C96] shadow-[0_14px_34px_rgba(95,72,150,0.12)]"
       >
         ≡
       </button>
@@ -778,67 +861,67 @@ export default function MevaIdPage() {
 
   return (
     <>
-      <div className="min-h-screen overflow-hidden bg-[#EAF1FB] px-4 pt-2 select-none [-webkit-user-select:none] [-webkit-touch-callout:none]">
+      <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#EAF1FB] px-4 pt-0 select-none [-webkit-user-select:none] [-webkit-touch-callout:none]">
         {renderMainShell(
           <>
-            <div className="flex justify-center pt-[22px]">
+            <div className="flex justify-center pt-[16px]">
               <div className="flex flex-col items-center gap-1.5">
-                <div className="rounded-full bg-white/85 px-6 py-1.5 text-[14px] font-black text-[#7B6F9E] shadow-sm">
-                  Visited{mevaData?.tapCount ?? 0}
+                <div className="min-w-[112px] rounded-full bg-white/85 px-4 py-1.5 text-center text-[13px] font-black text-[#7B6F9E] shadow-sm">
+                  Visited {mevaData?.tapCount ?? 0}
                 </div>
-                <div className="rounded-full bg-white/85 px-6 py-1.5 text-[14px] font-black text-[#7B6F9E] shadow-sm">
-                  Fed{mevaData?.visitorTapCount ?? 0}
+                <div className="min-w-[112px] rounded-full bg-white/85 px-4 py-1.5 text-center text-[13px] font-black text-[#7B6F9E] shadow-sm">
+                  Fed {mevaData?.visitorTapCount ?? 0}
                 </div>
               </div>
             </div>
 
-            <div className="mt-[220px] flex justify-center">
-              <div className="relative flex h-[206px] w-full items-start justify-center">
-                <div className="absolute left-1/2 top-0 -translate-x-1/2 rounded-[20px] bg-white px-5 py-2.5 text-[16px] font-black text-[#5E537F] shadow-sm">
+            <div className="mt-[168px] flex justify-center">
+              <div className="relative flex h-[250px] w-full items-start justify-center">
+                <div className="absolute left-1/2 top-0 -translate-x-1/2 rounded-[18px] bg-white px-4 py-2 text-[14px] font-black text-[#5E537F] shadow-sm">
                   {viewerState.isOwner ? "you found me" : "feed me"}
                   <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-l-[10px] border-r-[10px] border-t-[12px] border-l-transparent border-r-transparent border-t-white" />
                 </div>
-
-                {tapBurst.map((item, index) => (
-                  <div
-                    key={item}
-                    className="pointer-events-none absolute left-[55%] top-[52px] z-20 rounded-full bg-white/90 px-3 py-1 text-[15px] font-black text-[#8D76F6] shadow-sm"
-                    style={{
-                      animation: "tapFloat 700ms ease-out forwards",
-                      transform: `translate(${index * 10}px, 0)`,
-                    }}
-                  >
-                    +1
-                  </div>
-                ))}
 
                 <img
                   src={imageUrl}
                   alt={displayName}
                   draggable="false"
                   onContextMenu={(e) => e.preventDefault()}
-                  onClick={handleTap}
-                  className={`absolute top-[58px] z-10 h-[122px] w-auto cursor-pointer select-none object-contain [-webkit-user-drag:none] ${
-                    tapBounce ? "scale-[1.06]" : "scale-100"
+                  onPointerDown={handleMevaPointerDown}
+                  onPointerMove={handleMevaPointerMove}
+                  onPointerUp={handleMevaPointerUp}
+                  onPointerCancel={() => {
+                    dragRef.current.active = false;
+                    setDraggingMeva(false);
+                  }}
+                  className={`absolute top-[54px] z-10 h-[122px] w-auto cursor-grab select-none object-contain [-webkit-user-drag:none] ${
+                    draggingMeva ? "cursor-grabbing" : ""
                   } transition-transform duration-150`}
                   style={{
-                    animation: "mevaFloat 3.6s ease-in-out infinite",
+                    animation:
+                      mevaMood === "happy" || draggingMeva
+                        ? "none"
+                        : "mevaFloat 3.6s ease-in-out infinite",
+                    transform: `translate(${mevaPos.x}px, ${mevaPos.y}px) scale(${
+                      tapBounce ? 1.08 : 1
+                    }) rotate(${tapBounce ? 2 : 0}deg)`,
                     WebkitTouchCallout: "none",
                     WebkitUserSelect: "none",
                     userSelect: "none",
+                    touchAction: "none",
                   }}
                 />
               </div>
             </div>
 
-            <div className="mt-[58px] flex justify-center">
-              <div className="rounded-full bg-white/90 px-6 py-2.5 text-[17px] font-black text-[#625683] shadow-sm">
+            <div className="mt-[26px] flex justify-center">
+              <div className="rounded-full bg-white/90 px-5 py-2 text-[15px] font-black text-[#625683] shadow-sm">
                 {displayName}
               </div>
             </div>
 
-            <div className="mx-auto mt-3 max-w-[292px] rounded-[22px] bg-white/85 px-3.5 py-2.5 text-center shadow-sm">
-              <p className="text-[13px] font-semibold leading-5 text-[#625F7A]">
+            <div className="mx-auto mt-2 max-w-[250px] rounded-[18px] bg-white/85 px-3 py-2 text-center shadow-sm">
+              <p className="text-[12px] font-semibold leading-5 text-[#625F7A]">
                 Tap to feed · Hold for quiet
                 <br />
                 Drag the one that’s awake
@@ -917,7 +1000,7 @@ export default function MevaIdPage() {
             Top collectors
           </p>
 
-          <div className="mb-3 grid grid-cols-2 gap-3 rounded-[26px] bg-[#F4F1FB] p-2">
+          <div className="mb-3 grid grid-cols-3 gap-2 rounded-[26px] bg-[#F4F1FB] p-2">
             <button
               type="button"
               onClick={async () => {
@@ -945,6 +1028,20 @@ export default function MevaIdPage() {
               }`}
             >
               Weekly
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                setLeaderboardType("visited");
+                await fetchLeaderboard("visited");
+              }}
+              className={`h-[52px] rounded-[22px] text-[14px] font-black ${
+                leaderboardType === "visited"
+                  ? "bg-white text-[#5A4D82] shadow-sm"
+                  : "text-[#6B5C96]"
+              }`}
+            >
+              Visited
             </button>
           </div>
 
@@ -1219,7 +1316,7 @@ export default function MevaIdPage() {
               <p className="mb-3 text-[16px] font-black uppercase tracking-[0.18em] text-[#8A7CA8]">
                 Rename
               </p>
-              <button className="h-[50px] w-full rounded-[22px] bg-[#F8F6FD] text-[15px] font-black text-[#5A4D82]" onClick={() => setMoreMode("rename")}>
+              <button className="h-[50px] w-full rounded-[22px] bg-[#F8F6FD] text-[15px] font-black text-[#5A4D82]" onClick={() => { setRenameDraft(displayName); setRenameMessage(""); setMoreMode("rename"); }}>
                 Rename Meva
               </button>
             </>
@@ -1256,7 +1353,7 @@ export default function MevaIdPage() {
 
           {moreMode === "support" ? (
             <div className="text-center">
-              <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-2 h-[78px] w-auto pointer-events-none" draggable="false" />
+              <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-2 h-[66px] w-auto pointer-events-none" draggable="false" />
               <p className="mb-1 text-[22px] font-black text-[#30215A]">Support / Contact Us</p>
               <p className="mx-auto mb-4 max-w-[320px] text-[15px] leading-6 text-[#6B5C96]">
                 Report a bug, ask a question, or send a quick message.
@@ -1277,7 +1374,7 @@ export default function MevaIdPage() {
 
           {moreMode === "play" ? (
             <div className="text-center">
-              <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-4 h-[78px] w-auto pointer-events-none" draggable="false" />
+              <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-3 h-[66px] w-auto pointer-events-none" draggable="false" />
               <p className="mb-2 text-[22px] font-black text-[#30215A]">Play Mode</p>
               <p className="mx-auto mb-4 max-w-[320px] text-[15px] leading-6 text-[#6B5C96]">
                 Lock menus and controls so Mevas can be played with safely.
@@ -1294,10 +1391,32 @@ export default function MevaIdPage() {
             <div className="text-center">
               <p className="mb-1 text-[22px] font-black text-[#30215A]">Rename Meva</p>
               <p className="mb-4 text-[15px] font-semibold text-[#6B5C96]">Preview: {displayName}</p>
-              <input className="mb-5 h-[54px] w-full rounded-[18px] border border-[#E6DEF8] px-4 text-[16px] outline-none" placeholder={`Nickname for ${mevaData?.realName || "Meva"}`} />
+              <input
+                value={renameDraft}
+                onChange={(e) => setRenameDraft(e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 12))}
+                className="mb-3 h-[54px] w-full rounded-[18px] border border-[#E6DEF8] px-4 text-center text-[16px] font-black text-[#5A4D82] outline-none"
+                placeholder={`Nickname for ${mevaData?.realName || "Kibo"}`}
+              />
+              {renameMessage ? (
+                <p className="mb-3 text-[13px] font-bold text-[#6B5C96]">{renameMessage}</p>
+              ) : null}
               <div className="grid grid-cols-2 gap-3">
-                <button className="h-[50px] rounded-[18px] bg-white text-[15px] font-black text-[#6B5C96] shadow-sm">Generate</button>
-                <button className="h-[50px] rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white">Save</button>
+                <button
+                  type="button"
+                  onClick={() => saveMevaNickname({ generate: true })}
+                  disabled={renamingMeva}
+                  className="h-[50px] rounded-[18px] bg-white text-[15px] font-black text-[#6B5C96] shadow-sm disabled:opacity-50"
+                >
+                  Generate
+                </button>
+                <button
+                  type="button"
+                  onClick={() => saveMevaNickname({ nickname: renameDraft })}
+                  disabled={renamingMeva}
+                  className="h-[50px] rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white disabled:opacity-50"
+                >
+                  {renamingMeva ? "Saving..." : "Save"}
+                </button>
               </div>
               <button onClick={() => setMoreMode("main")} className="mt-4 text-[14px] font-bold text-[#7D729B]">Cancel</button>
             </div>
@@ -1312,10 +1431,12 @@ export default function MevaIdPage() {
           100% { transform: translateY(0px); }
         }
 
-        @keyframes tapFloat {
-          0% { opacity: 0; transform: translateY(0) scale(0.92); }
-          18% { opacity: 1; }
-          100% { opacity: 0; transform: translateY(-42px) scale(1.08); }
+        @keyframes mevaHappy {
+          0% { transform: translateY(0px) scale(1) rotate(0deg); }
+          22% { transform: translateY(-8px) scale(1.08) rotate(2deg); }
+          48% { transform: translateY(2px) scale(0.98) rotate(-1deg); }
+          72% { transform: translateY(-3px) scale(1.03) rotate(1deg); }
+          100% { transform: translateY(0px) scale(1) rotate(0deg); }
         }
       `}</style>
     </>
@@ -1328,7 +1449,7 @@ function InnerInfo({ title, lines, onClose }) {
       <img
         src={MEVA_LOGO_URL}
         alt="Meva"
-        className="mx-auto mb-4 h-[98px] w-auto pointer-events-none"
+        className="mx-auto mb-3 h-[66px] w-auto pointer-events-none"
         draggable="false"
       />
       <p className="mb-4 text-[22px] font-black text-[#30215A]">{title}</p>
