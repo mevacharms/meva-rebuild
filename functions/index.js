@@ -64,6 +64,64 @@ function getTapKey({ mevaId, actorUid, sessionId }) {
   return `${mevaId}_${safeActor}_${safeSession}`;
 }
 
+function getEasternWeekKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+  }).formatToParts(date);
+
+  const get = (type) => parts.find((part) => part.type === type)?.value;
+  const year = Number(get("year"));
+  const month = Number(get("month"));
+  const day = Number(get("day"));
+  const weekday = get("weekday");
+
+  const dayMap = {
+    Mon: 0,
+    Tue: 1,
+    Wed: 2,
+    Thu: 3,
+    Fri: 4,
+    Sat: 5,
+    Sun: 6,
+  };
+
+  const daysSinceMonday = dayMap[weekday] ?? 0;
+  const monday = new Date(Date.UTC(year, month - 1, day - daysSinceMonday));
+
+  return monday.toISOString().slice(0, 10);
+}
+
+function generateLeaderboardName() {
+  const words = ["Kibo", "Cloud", "Meva", "Star", "Nova", "Mochi", "Lucky"];
+  const word = words[Math.floor(Math.random() * words.length)];
+  const number = Math.floor(100 + Math.random() * 900);
+  return `${word}${number}`;
+}
+
+function normalizeLeaderboardName(value) {
+  return String(value || "").trim();
+}
+
+function assertValidLeaderboardName(name) {
+  if (!/^[A-Za-z0-9]{3,12}$/.test(name)) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Name must be 3–12 letters or numbers."
+    );
+  }
+
+  const blocked = ["admin", "meva", "mod", "owner", "fuck", "shit", "bitch"];
+  const lower = name.toLowerCase();
+
+  if (blocked.some((word) => lower.includes(word))) {
+    throw new HttpsError("invalid-argument", "Choose a different name.");
+  }
+}
+
 async function createEvent({
   eventType,
   mevaId,
@@ -493,15 +551,50 @@ exports.logMevaInteraction = onCall(async (request) => {
               mevaRef,
               {
                 ownerTapCount: FieldValue.increment(1),
+                ownerCountedTapTotal: FieldValue.increment(1),
+                countedTapTotal: FieldValue.increment(1),
                 updatedAt: FieldValue.serverTimestamp(),
               },
               { merge: true }
             );
+
+            if (request.auth?.uid) {
+              const weekKey = getEasternWeekKey();
+              const allTimeRef = db
+                .collection("mevaLeaderboardAllTime")
+                .doc(request.auth.uid);
+              const weeklyRef = db
+                .collection("mevaLeaderboardWeekly")
+                .doc(`${weekKey}_${request.auth.uid}`);
+
+              tx.set(
+                allTimeRef,
+                {
+                  uid: request.auth.uid,
+                  score: FieldValue.increment(1),
+                  updatedAt: FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
+
+              tx.set(
+                weeklyRef,
+                {
+                  uid: request.auth.uid,
+                  weekKey,
+                  score: FieldValue.increment(1),
+                  updatedAt: FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
+            }
           } else {
             tx.set(
               mevaRef,
               {
                 visitorTapCount: FieldValue.increment(1),
+                visitorCountedTapTotal: FieldValue.increment(1),
+                countedTapTotal: FieldValue.increment(1),
                 updatedAt: FieldValue.serverTimestamp(),
               },
               { merge: true }
@@ -537,6 +630,91 @@ exports.logMevaInteraction = onCall(async (request) => {
     isOwner,
     counted,
     countBlockReason,
+  };
+});
+
+exports.getMevaLeaderboard = onCall(async (request) => {
+  const type = String(request.data?.type || "allTime");
+  const weekKey = getEasternWeekKey();
+
+  const source =
+    type === "weekly"
+      ? db
+          .collection("mevaLeaderboardWeekly")
+          .where("weekKey", "==", weekKey)
+          .orderBy("score", "desc")
+          .limit(25)
+      : db
+          .collection("mevaLeaderboardAllTime")
+          .orderBy("score", "desc")
+          .limit(25);
+
+  const snap = await source.get();
+  const rows = [];
+
+  for (const docSnap of snap.docs) {
+    const data = docSnap.data();
+    const userSnap = await db.collection("users").doc(data.uid).get();
+    const userData = userSnap.exists ? userSnap.data() : {};
+
+    rows.push({
+      uid: data.uid,
+      score: data.score || 0,
+      leaderboardName:
+        userData.leaderboardName || generateLeaderboardName(),
+    });
+  }
+
+  return {
+    type,
+    weekKey,
+    rows,
+  };
+});
+
+exports.setMevaLeaderboardName = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must sign in first.");
+  }
+
+  const userRef = db.collection("users").doc(request.auth.uid);
+  const userSnap = await userRef.get();
+  const userData = userSnap.exists ? userSnap.data() : {};
+
+  const useGenerated = request.data?.generate === true;
+  const requestedName = useGenerated
+    ? generateLeaderboardName()
+    : normalizeLeaderboardName(request.data?.name);
+
+  assertValidLeaderboardName(requestedName);
+
+  const nowMs = Date.now();
+  const lastChangedMs = userData.leaderboardNameUpdatedAtMs || 0;
+  const fourteenDaysMs = 14 * 24 * 60 * 60 * 1000;
+  const hasFreeChange = userData.freeLeaderboardNameChangeAvailable !== false;
+
+  if (!hasFreeChange && nowMs - lastChangedMs < fourteenDaysMs) {
+    throw new HttpsError(
+      "failed-precondition",
+      "You can change your leaderboard name once every 14 days."
+    );
+  }
+
+  await userRef.set(
+    {
+      leaderboardName: requestedName,
+      leaderboardNameLower: requestedName.toLowerCase(),
+      freeLeaderboardNameChangeAvailable: false,
+      leaderboardNameUpdatedAt: FieldValue.serverTimestamp(),
+      leaderboardNameUpdatedAtMs: nowMs,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  return {
+    success: true,
+    leaderboardName: requestedName,
   };
 });
 
