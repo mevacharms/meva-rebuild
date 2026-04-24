@@ -225,6 +225,7 @@ export default function MevaIdPage() {
   const [renameDraft, setRenameDraft] = useState("");
   const [renameMessage, setRenameMessage] = useState("");
   const [renamingMeva, setRenamingMeva] = useState(false);
+  const [unclaimConfirmText, setUnclaimConfirmText] = useState("");
   const dragRef = useRef({
     active: false,
     moved: false,
@@ -438,6 +439,23 @@ setViewerState({
     const timer = setInterval(tick, 60000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!draggingMeva) return;
+
+    const handleMove = (e) => moveMevaToPointer(e.clientX, e.clientY);
+    const handleUp = () => finishMevaDrag();
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleUp);
+    };
+  }, [draggingMeva]);
 
   const displayName =
     mevaData?.nickname && String(mevaData.nickname).toLowerCase() !== "edaline"
@@ -773,6 +791,35 @@ setViewerState({
     await trackInteraction("tap");
   };
 
+  const moveMevaToPointer = (clientX, clientY) => {
+    if (!dragRef.current.active) return;
+
+    const dx = clientX - dragRef.current.startX;
+    const dy = clientY - dragRef.current.startY;
+
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      dragRef.current.moved = true;
+    }
+
+    setMevaPos({
+      x: Math.max(-120, Math.min(120, dragRef.current.baseX + dx)),
+      y: Math.max(-155, Math.min(135, dragRef.current.baseY + dy)),
+    });
+  };
+
+  const finishMevaDrag = async () => {
+    const shouldTap = dragRef.current.active && !dragRef.current.moved;
+
+    dragRef.current.active = false;
+    setDraggingMeva(false);
+
+    if (shouldTap) {
+      await handleTap();
+    } else {
+      await trackInteraction("drag_end");
+    }
+  };
+
   const handleMevaPointerDown = (e) => {
     e.preventDefault();
 
@@ -786,37 +833,14 @@ setViewerState({
     };
 
     setDraggingMeva(true);
-    e.currentTarget.setPointerCapture?.(e.pointerId);
   };
 
   const handleMevaPointerMove = (e) => {
-    if (!dragRef.current.active) return;
-
-    const dx = e.clientX - dragRef.current.startX;
-    const dy = e.clientY - dragRef.current.startY;
-
-    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
-      dragRef.current.moved = true;
-    }
-
-    setMevaPos({
-      x: Math.max(-110, Math.min(110, dragRef.current.baseX + dx)),
-      y: Math.max(-150, Math.min(130, dragRef.current.baseY + dy)),
-    });
+    moveMevaToPointer(e.clientX, e.clientY);
   };
 
-  const handleMevaPointerUp = async (e) => {
-    const shouldTap = dragRef.current.active && !dragRef.current.moved;
-
-    dragRef.current.active = false;
-    setDraggingMeva(false);
-    e.currentTarget.releasePointerCapture?.(e.pointerId);
-
-    if (shouldTap) {
-      await handleTap();
-    } else {
-      await trackInteraction("drag_end");
-    }
+  const handleMevaPointerUp = async () => {
+    await finishMevaDrag();
   };
 
   const saveMevaNickname = async (payload) => {
@@ -844,12 +868,12 @@ setViewerState({
       <a
         href="/m"
         aria-label="Back to Meva"
-        className="absolute left-3 top-4 z-20 flex h-[54px] w-[54px] items-center justify-center rounded-full bg-white/90 shadow-[0_12px_28px_rgba(95,72,150,0.10)]"
+        className="absolute left-3 top-4 z-20 flex h-[54px] w-[54px] items-center justify-center"
       >
         <img
           src={MEVA_LOGO_URL}
           alt="Meva logo"
-          className="h-[42px] w-auto object-contain select-none pointer-events-none"
+          className="h-[54px] w-auto object-contain select-none pointer-events-none"
           draggable="false"
         />
       </a>
@@ -924,8 +948,8 @@ setViewerState({
         {renderMainShell(
           <>
             <div className="flex justify-center pt-[18px]">
-              <div className="grid grid-cols-2 gap-2 rounded-full bg-white/45 p-1.5 shadow-sm backdrop-blur-sm">
-                <div className="min-w-[86px] rounded-full bg-white/90 px-3 py-1.5 text-center">
+            <div className="grid grid-cols-2 gap-1.5 rounded-full bg-white/45 p-1 shadow-sm backdrop-blur-sm">
+            <div className="min-w-[78px] rounded-full bg-white/90 px-2.5 py-1 text-center">
                   <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#A095B8]">
                     Visited
                   </p>
@@ -933,7 +957,7 @@ setViewerState({
                     {mevaData?.tapCount ?? 0}
                   </p>
                 </div>
-                <div className="min-w-[86px] rounded-full bg-white/90 px-3 py-1.5 text-center">
+                <div className="min-w-[78px] rounded-full bg-white/90 px-2.5 py-1 text-center">
                   <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#A095B8]">
                     Fed
                   </p>
@@ -959,7 +983,6 @@ setViewerState({
                   onPointerDown={handleMevaPointerDown}
                   onPointerMove={handleMevaPointerMove}
                   onPointerUp={handleMevaPointerUp}
-                  onPointerLeave={handleMevaPointerUp}
                   onPointerCancel={() => {
                     dragRef.current.active = false;
                     setDraggingMeva(false);
@@ -968,10 +991,7 @@ setViewerState({
                     draggingMeva ? "cursor-grabbing" : ""
                   } transition-transform duration-75`}
                   style={{
-                    animation:
-                      mevaMood === "happy" || draggingMeva
-                        ? "none"
-                        : "mevaFloat 3.6s ease-in-out infinite",
+                    animation: "none",
                     transform: `translate(${mevaPos.x}px, ${mevaPos.y}px) scale(${
                       tapBounce ? 1.08 : 1
                     }) rotate(${tapBounce ? 2 : 0}deg)`,
@@ -992,7 +1012,7 @@ setViewerState({
 
             <div className="mx-auto mt-2 max-w-[238px] rounded-[20px] bg-white/80 px-4 py-2 text-center shadow-sm backdrop-blur-sm">
               <p className="text-[12px] font-bold leading-5 text-[#69617F]">
-                Tap to feed · drag gently
+              Tap, hold, or drag to interact
               </p>
             </div>
 
@@ -1350,7 +1370,24 @@ setViewerState({
               <p className="mb-3 text-[16px] font-black uppercase tracking-[0.18em] text-[#8A7CA8]">
                 Actions
               </p>
-              <div className="mb-4 space-y-3">
+              <div className="mb-4 space-y-2.5">
+                <div className="rounded-[22px] bg-[#F8F6FD] px-4 py-3 text-center">
+                  <p className="text-[13px] font-black text-[#5A4D82]">
+                    {viewerState.isClaimed
+                      ? "Saved with Google"
+                      : viewerState.isDeviceOwner
+                      ? "Saved on this device"
+                      : "Not claimed yet"}
+                  </p>
+                  <p className="mt-1 text-[12px] font-bold leading-5 text-[#8A7CA8]">
+                    {viewerState.isClaimed
+                      ? "This is the safest claim. It follows your account."
+                      : viewerState.isDeviceOwner
+                      ? "This only stays on this phone/browser. Save with Google if you want it protected."
+                      : "Keep it on this device for now, or save it with Google so it follows you."}
+                  </p>
+                </div>
+
                 <button
                   type="button"
                   disabled={actionLoading}
@@ -1362,47 +1399,37 @@ setViewerState({
                     }
 
                     if (viewerState.isClaimed) {
-                      handleUnclaim();
+                      setUnclaimConfirmText("");
+                      setMoreMode("unclaimConfirm");
+                    } else if (viewerState.isDeviceOwner) {
+                      handleUpgradeDeviceClaim();
                     } else {
                       handleClaim();
                     }
                   }}
-                  className="h-[52px] w-full rounded-[22px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white shadow-sm disabled:opacity-50"
+                  className="h-[50px] w-full rounded-[20px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[14px] font-black text-white shadow-sm disabled:opacity-50"
                 >
                   {actionLoading
                     ? "Please wait..."
                     : viewerState.isClaimed
                     ? "Unclaim Google ownership"
                     : viewerState.isDeviceOwner
-                    ? "Save permanently with Google"
+                    ? "Save with Google"
                     : "Claim with Google"}
                 </button>
 
-                {viewerState.isDeviceOwner && !viewerState.isClaimed ? (
+                {!viewerState.isClaimed ? (
                   <button
                     type="button"
-                    disabled={actionLoading}
-                    onClick={handleUpgradeDeviceClaim}
-                    className="h-[48px] w-full rounded-[20px] bg-white text-[14px] font-black text-[#6B5C96] shadow-sm disabled:opacity-50"
+                    onClick={viewerState.isDeviceOwner ? handleDeviceUnclaim : handleDeviceClaim}
+                    className="h-[46px] w-full rounded-[20px] bg-white text-[14px] font-black text-[#6B5C96] shadow-sm"
                   >
-                    Upgrade this device claim
+                    {viewerState.isDeviceOwner ? "Remove device claim" : "Keep on this device"}
                   </button>
                 ) : null}
 
                 <button
-                  type="button"
-                  onClick={viewerState.isDeviceOwner ? handleDeviceUnclaim : handleDeviceClaim}
-                  className="h-[48px] w-full rounded-[20px] bg-[#F8F6FD] text-[14px] font-black text-[#5A4D82]"
-                >
-                  {viewerState.isDeviceOwner ? "Remove from this device" : "Keep on this device"}
-                </button>
-
-                <p className="mx-auto max-w-[310px] text-[12px] font-bold leading-5 text-[#8A7CA8]">
-                  Device claim keeps {displayName} here only. Google claim saves ownership if you switch phones.
-                </p>
-
-                <button
-                  className="h-[50px] w-full rounded-[22px] bg-[#F8F6FD] text-[15px] font-black text-[#5A4D82]"
+                  className="h-[46px] w-full rounded-[20px] bg-[#F8F6FD] text-[14px] font-black text-[#5A4D82]"
                   onClick={() => setMoreMode("support")}
                 >
                   Support / Contact
@@ -1419,20 +1446,55 @@ setViewerState({
                 </span>
               </div>
 
-              <p className="mb-3 text-[16px] font-black uppercase tracking-[0.18em] text-[#8A7CA8]">
-                Safety
-              </p>
-              <button className="mb-5 h-[50px] w-full rounded-[22px] bg-[#F8F6FD] text-[15px] font-black text-[#5A4D82]" onClick={() => setMoreMode("play")}>
-                Play Mode
-              </button>
-
-              <p className="mb-3 text-[16px] font-black uppercase tracking-[0.18em] text-[#8A7CA8]">
-                Rename
-              </p>
-              <button className="h-[50px] w-full rounded-[22px] bg-[#F8F6FD] text-[15px] font-black text-[#5A4D82]" onClick={() => { setRenameDraft(displayName); setRenameMessage(""); setMoreMode("rename"); }}>
-                Rename Meva
-              </button>
+              <div className="grid grid-cols-2 gap-3">
+                <button className="h-[50px] rounded-[22px] bg-[#F8F6FD] text-[15px] font-black text-[#5A4D82]" onClick={() => setMoreMode("play")}>
+                  Play Mode
+                </button>
+                <button className="h-[50px] rounded-[22px] bg-[#F8F6FD] text-[15px] font-black text-[#5A4D82]" onClick={() => { setRenameDraft(displayName); setRenameMessage(""); setMoreMode("rename"); }}>
+                  Rename Meva
+                </button>
+              </div>
             </>
+          ) : null}
+
+{moreMode === "unclaimConfirm" ? (
+            <div className="text-center">
+              <img
+                src={MEVA_LOGO_URL}
+                alt="Meva"
+                className="mx-auto mb-3 h-[54px] w-auto pointer-events-none"
+                draggable="false"
+              />
+              <p className="mb-2 text-[22px] font-black text-[#30215A]">
+                Unclaim {displayName}?
+              </p>
+              <p className="mx-auto mb-4 max-w-[310px] text-[14px] font-bold leading-6 text-[#6B5C96]">
+                This removes Google ownership from your account. Other people may be able to claim this Meva after.
+              </p>
+              <input
+                value={unclaimConfirmText}
+                onChange={(e) => setUnclaimConfirmText(e.target.value.toLowerCase())}
+                placeholder="type confirm"
+                className="mb-3 h-[50px] w-full rounded-[18px] border border-[#E6DEF8] bg-white px-4 text-center text-[16px] font-black text-[#5A4D82] outline-none"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMoreMode("main")}
+                  className="h-[48px] rounded-[18px] bg-white text-[15px] font-black text-[#6B5C96] shadow-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={unclaimConfirmText !== "confirm" || actionLoading}
+                  onClick={handleUnclaim}
+                  className="h-[48px] rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white disabled:opacity-40"
+                >
+                  Unclaim
+                </button>
+              </div>
+            </div>
           ) : null}
 
           {moreMode === "about" ? (
@@ -1457,7 +1519,7 @@ setViewerState({
                 "Hold a little longer and they may respond more softly.",
                 "Drag the active Meva if you want them closer.",
                 "You can keep up to four on screen at once.",
-                "Claiming a Meva makes it yours on this device.",
+                "Device claim keeps it here. Google claim protects it across phones.",
                 "Everything builds slowly over time.",
               ]}
               onClose={() => setMoreMode("main")}
@@ -1466,7 +1528,7 @@ setViewerState({
 
           {moreMode === "support" ? (
             <div className="text-center">
-              <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-2 h-[66px] w-auto pointer-events-none" draggable="false" />
+              <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-3 h-[54px] w-auto pointer-events-none" draggable="false" />
               <p className="mb-1 text-[22px] font-black text-[#30215A]">Support / Contact Us</p>
               <p className="mx-auto mb-4 max-w-[320px] text-[15px] leading-6 text-[#6B5C96]">
                 Report a bug, ask a question, or send a quick message.
@@ -1562,7 +1624,7 @@ function InnerInfo({ title, lines, onClose }) {
       <img
         src={MEVA_LOGO_URL}
         alt="Meva"
-        className="mx-auto mb-3 h-[66px] w-auto pointer-events-none"
+        className="mx-auto mb-3 h-[54px] w-auto pointer-events-none"
         draggable="false"
       />
       <p className="mb-4 text-[22px] font-black text-[#30215A]">{title}</p>
