@@ -126,6 +126,22 @@ export default function MevaIdPage() {
   const [actionMessage, setActionMessage] = useState("");
   const [authMessage, setAuthMessage] = useState("");
   const [debugInfo, setDebugInfo] = useState([]);
+
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
+  const [leaderboardType, setLeaderboardType] = useState("allTime");
+  const [leaderboardData, setLeaderboardData] = useState([]);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
+
+  const getMevaLeaderboard = useMemo(
+    () => httpsCallable(functions, "getMevaLeaderboard"),
+    []
+  );
+
+  const setMevaLeaderboardName = useMemo(
+    () => httpsCallable(functions, "setMevaLeaderboardName"),
+    []
+  );
   const isDebug =
     new URLSearchParams(window.location.search).get("debug") === "1";
 
@@ -459,8 +475,19 @@ export default function MevaIdPage() {
       console.error(`Failed to track ${eventType}:`, err);
     }
 };
+const fetchLeaderboard = async (type) => {
+  try {
+    setLoadingLeaderboard(true);
+    const res = await getMevaLeaderboard({ type });
+    setLeaderboardData(res.data?.rows || []);
+  } catch (err) {
+    console.error("Leaderboard error:", err);
+  } finally {
+    setLoadingLeaderboard(false);
+  }
+};
 
-  const refreshCurrentMeva = async () => {
+const refreshCurrentMeva = async () => {
     if (!isTestMeva) {
       const mevaRef = doc(db, "mevas", mevaId);
       const mevaSnap = await getDoc(mevaRef);
@@ -748,6 +775,7 @@ export default function MevaIdPage() {
       <button
         type="button"
         aria-label="Open menu"
+        onClick={() => setIsMenuOpen(true)}
         className="absolute right-2 top-4 z-20 flex h-[74px] w-[74px] items-center justify-center rounded-full bg-white/90 text-[34px] font-bold text-[#6B5C96] shadow-[0_12px_30px_rgba(95,72,150,0.10)]"
       >
         ≡
@@ -952,6 +980,189 @@ export default function MevaIdPage() {
           </>
         )}
       </div>
+
+      {isMenuOpen ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#30215A]/35 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-[360px] rounded-[30px] bg-white p-5 shadow-[0_24px_70px_rgba(48,33,90,0.20)]">
+            <p className="mb-4 text-center text-[18px] font-black text-[#30215A]">
+              MEVA MENU
+            </p>
+
+            <button
+              type="button"
+              onClick={async () => {
+                setIsMenuOpen(false);
+                setIsLeaderboardOpen(true);
+                setLeaderboardType("allTime");
+                await fetchLeaderboard("allTime");
+              }}
+              className="mb-3 w-full rounded-[22px] bg-[#F4F1FB] px-5 py-4 text-left shadow-sm"
+            >
+              <p className="text-[16px] font-black text-[#5A4D82]">
+                Leaderboard
+              </p>
+              <p className="mt-1 text-[13px] font-semibold text-[#8A7CA8]">
+                Top collectors
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen(false)}
+              className="mt-2 h-[48px] w-full rounded-[18px] bg-[#EFE8FB] text-[15px] font-black text-[#6B5C96]"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {isLeaderboardOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#30215A]/40 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-[420px] rounded-[32px] bg-white p-5 shadow-[0_24px_80px_rgba(48,33,90,0.24)]">
+            <div className="mb-4 flex items-center justify-between">
+              <p className="text-[22px] font-black text-[#30215A]">
+                Top collectors
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setIsLeaderboardOpen(false)}
+                className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-[#F4F1FB] text-[18px] font-black text-[#6B5C96]"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mb-4 grid grid-cols-2 gap-2 rounded-[20px] bg-[#F4F1FB] p-1">
+              <button
+                type="button"
+                onClick={async () => {
+                  setLeaderboardType("allTime");
+                  await fetchLeaderboard("allTime");
+                }}
+                className={`h-[42px] rounded-[16px] text-[14px] font-black ${
+                  leaderboardType === "allTime"
+                    ? "bg-white text-[#5A4D82] shadow-sm"
+                    : "text-[#8A7CA8]"
+                }`}
+              >
+                All Time
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setLeaderboardType("weekly");
+                  await fetchLeaderboard("weekly");
+                }}
+                className={`h-[42px] rounded-[16px] text-[14px] font-black ${
+                  leaderboardType === "weekly"
+                    ? "bg-white text-[#5A4D82] shadow-sm"
+                    : "text-[#8A7CA8]"
+                }`}
+              >
+                Weekly
+              </button>
+            </div>
+
+            <p className="mb-4 text-center text-[13px] font-bold text-[#8A7CA8]">
+              Weekly resets Sunday night into Monday morning.
+            </p>
+
+            <div className="min-h-[170px] space-y-2 rounded-[24px] bg-[#F8F6FD] p-3">
+              {loadingLeaderboard ? (
+                <p className="py-10 text-center text-[14px] font-bold text-[#8A7CA8]">
+                  Loading...
+                </p>
+              ) : leaderboardData.length === 0 ? (
+                <p className="py-10 text-center text-[14px] font-bold text-[#8A7CA8]">
+                  No collectors yet.
+                </p>
+              ) : (
+                leaderboardData.map((item, index) => (
+                  <div
+                    key={item.uid}
+                    className="flex items-center justify-between rounded-[18px] bg-white px-4 py-3 shadow-sm"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#EFE8FB] text-[14px] font-black text-[#6B5C96]">
+                        {index + 1}
+                      </div>
+                      <p className="text-[15px] font-black text-[#5A4D82]">
+                        {item.leaderboardName}
+                      </p>
+                    </div>
+
+                    <p className="text-[15px] font-black text-[#7B6F9E]">
+                      {item.score}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="mt-4 rounded-[24px] bg-[#F4F1FB] p-4 text-center">
+              <p className="text-[15px] font-black text-[#5A4D82]">
+                {user ? "Your leaderboard name" : "Sign in to join"}
+              </p>
+
+              <p className="mt-1 text-[13px] font-bold text-[#8A7CA8]">
+                {user?.email || "Claim a Meva first to compete."}
+              </p>
+
+              {user ? (
+                <div className="mt-3 grid grid-cols-1 gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const name = window.prompt(
+                        "Choose a name: 3–12 letters or numbers"
+                      );
+                      if (!name) return;
+
+                      try {
+                        await setMevaLeaderboardName({ name });
+                        await fetchLeaderboard(leaderboardType);
+                        setActionMessage("Leaderboard name updated.");
+                      } catch (err) {
+                        setActionMessage(
+                          err?.message || "Could not update leaderboard name."
+                        );
+                      }
+                    }}
+                    className="h-[46px] rounded-[18px] bg-white text-[14px] font-black text-[#6B5C96] shadow-sm"
+                  >
+                    Change leaderboard name
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await setMevaLeaderboardName({ generate: true });
+                        await fetchLeaderboard(leaderboardType);
+                        setActionMessage("Random name generated.");
+                      } catch (err) {
+                        setActionMessage(
+                          err?.message || "Could not generate name."
+                        );
+                      }
+                    }}
+                    className="h-[46px] rounded-[18px] bg-white text-[14px] font-black text-[#6B5C96] shadow-sm"
+                  >
+                    Generate random name
+                  </button>
+                </div>
+              ) : null}
+
+              <p className="mt-3 text-[12px] font-bold text-[#9B8FB5]">
+                Name changes unlock every 14 days after your free change.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <style>{`
         @keyframes mevaFloat {
