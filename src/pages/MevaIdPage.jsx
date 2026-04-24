@@ -377,25 +377,68 @@ export default function MevaIdPage() {
     };
   };
 
+  const OFFLINE_QUEUE_KEY = "meva_offline_queue";
+
+  const saveOfflineEvent = (event) => {
+    try {
+      const existing = JSON.parse(
+        localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]"
+      );
+
+      existing.push({
+        ...event,
+        metadata: {
+          ...event.metadata,
+          queuedAt: Date.now(),
+        },
+      });
+
+      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(existing));
+    } catch {}
+  };
+
+  const flushOfflineQueue = async () => {
+    try {
+      const queue = JSON.parse(
+        localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]"
+      );
+
+      if (!queue.length) return;
+
+      const remaining = [];
+
+      for (const item of queue) {
+        try {
+          await logMevaInteraction(item);
+        } catch {
+          remaining.push(item);
+        }
+      }
+
+      if (remaining.length) {
+        localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
+      } else {
+        localStorage.removeItem(OFFLINE_QUEUE_KEY);
+      }
+    } catch {}
+  };
+
   const trackInteraction = async (eventType, extraMetadata = {}) => {
     try {
       if (!mevaId) return;
-  
+
       const context = await getClientContext();
-  
-      await logMevaInteraction({
+
+      const payload = {
         mevaId,
         eventType,
-  
         location: {
           ...context.location,
           latitude: null,
           longitude: null,
           accuracy: null,
         },
-  
         device: context.device,
-  
         metadata: {
           ...context.metadata,
           ...extraMetadata,
@@ -403,11 +446,19 @@ export default function MevaIdPage() {
           path: window.location.pathname,
           isMobile: isMobileLike(),
         },
-      });
+      };
+
+      if (!navigator.onLine) {
+        saveOfflineEvent(payload);
+        return;
+      }
+
+      await flushOfflineQueue();
+      await logMevaInteraction(payload);
     } catch (err) {
       console.error(`Failed to track ${eventType}:`, err);
     }
-  };
+};
 
   const refreshCurrentMeva = async () => {
     if (!isTestMeva) {
