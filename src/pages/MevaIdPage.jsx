@@ -758,9 +758,13 @@ export default function MevaIdPage() {
     );
   }
 
-  const primaryButtonLabel = viewerState.isClaimed
-  ? "Unclaim Meva"
-  : "Claim Meva";
+  const isMobileDevice = isMobileLike();
+
+  const primaryButtonLabel = !isMobileDevice
+    ? "Use phone to claim"
+    : viewerState.isClaimed
+      ? "Unclaim Meva"
+      : "Claim Meva";
 
   return (
     <>
@@ -851,7 +855,14 @@ export default function MevaIdPage() {
             <div className="mt-6 grid grid-cols-1 gap-3">
               <button
                 type="button"
-                onClick={viewerState.isClaimed ? handleUnclaim : handleClaim}
+                onClick={() => {
+                  if (!isMobileDevice) {
+                    setAuthMessage("Claiming works best on phone. Please scan or open this Meva on your phone to claim or unclaim.");
+                    return;
+                  }
+
+                  return viewerState.isClaimed ? handleUnclaim() : handleClaim();
+                }}
                 disabled={actionLoading}
                 className="h-[58px] w-full rounded-[20px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[16px] font-extrabold text-white transition duration-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
