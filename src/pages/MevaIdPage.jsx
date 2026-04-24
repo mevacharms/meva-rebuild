@@ -21,6 +21,22 @@ const MEVA_LOGO_URL =
 const PENDING_ACTION_KEY = "meva_pending_action";
 const OFFLINE_QUEUE_KEY = "meva_offline_queue";
 
+function getDeviceClaimKey(mevaId) {
+  return `meva_device_claim_${mevaId}`;
+}
+
+function isDeviceClaimed(mevaId) {
+  return localStorage.getItem(getDeviceClaimKey(mevaId)) === "true";
+}
+
+function setDeviceClaim(mevaId) {
+  localStorage.setItem(getDeviceClaimKey(mevaId), "true");
+}
+
+function removeDeviceClaim(mevaId) {
+  localStorage.removeItem(getDeviceClaimKey(mevaId));
+}
+
 function savePendingAction(action, mevaId) {
   localStorage.setItem(
     PENDING_ACTION_KEY,
@@ -178,6 +194,7 @@ export default function MevaIdPage() {
     isOwner: false,
     canClaim: false,
     canUnclaim: false,
+    isDeviceOwner: false,
   });
 
   const [actionLoading, setActionLoading] = useState(false);
@@ -387,13 +404,16 @@ export default function MevaIdPage() {
         const result = await getMevaViewerState({ mevaId });
         if (cancelled) return;
 
-        setViewerState({
-          isSignedIn: !!result.data?.isSignedIn,
-          isClaimed: !!result.data?.isClaimed,
-          isOwner: !!result.data?.isOwner,
-          canClaim: !!result.data?.canClaim,
-          canUnclaim: !!result.data?.canUnclaim,
-        });
+        const deviceOwner = isDeviceClaimed(mevaId);
+
+setViewerState({
+  isSignedIn: !!result.data?.isSignedIn,
+  isClaimed: !!result.data?.isClaimed,
+  isOwner: !!result.data?.isOwner,
+  canClaim: !!result.data?.canClaim,
+  canUnclaim: !!result.data?.canUnclaim,
+  isDeviceOwner: deviceOwner,
+});
       } catch (err) {
         if (cancelled) return;
         console.error("Viewer state error:", err);
@@ -584,7 +604,27 @@ export default function MevaIdPage() {
       return { mode: "failed", user: null };
     }
   };
-
+  const handleDeviceClaim = () => {
+    setDeviceClaim(mevaId);
+  
+    setViewerState((prev) => ({
+      ...prev,
+      isDeviceOwner: true,
+    }));
+  
+    setActionMessage("Claimed on this device.");
+  };
+  
+  const handleDeviceUnclaim = () => {
+    removeDeviceClaim(mevaId);
+  
+    setViewerState((prev) => ({
+      ...prev,
+      isDeviceOwner: false,
+    }));
+  
+    setActionMessage("Removed from this device.");
+  };
   const handleClaim = async () => {
     try {
       setActionLoading(true);
@@ -1291,7 +1331,31 @@ export default function MevaIdPage() {
                       closePanels();
                       return;
                     }
-                    return viewerState.isClaimed ? handleUnclaim() : handleClaim();
+                    <div className="space-y-2">
+  {/* Google Claim (existing) */}
+  <button
+    type="button"
+    onClick={viewerState.isClaimed ? handleUnclaim : handleClaim}
+    className="h-[50px] w-full rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white"
+  >
+    {viewerState.isClaimed ? "Unclaim (Google)" : "Claim with Google"}
+  </button>
+
+  {/* Device Claim (NEW) */}
+  <button
+    type="button"
+    onClick={
+      viewerState.isDeviceOwner
+        ? handleDeviceUnclaim
+        : handleDeviceClaim
+    }
+    className="h-[46px] w-full rounded-[18px] bg-white text-[14px] font-black text-[#6B5C96] shadow-sm"
+  >
+    {viewerState.isDeviceOwner
+      ? "Remove from this device"
+      : "Claim on this device"}
+  </button>
+</div>
                   }}
                 >
                   {actionLoading ? "Please wait..." : primaryButtonLabel}
