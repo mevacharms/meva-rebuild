@@ -16,8 +16,6 @@ const KIBO_IMAGE_URL =
 const MEVA_LOGO_URL =
   "https://firebasestorage.googleapis.com/v0/b/meva-clean.firebasestorage.app/o/brand%2FLogo.png?alt=media&token=dc0fef03-4c72-4a08-967e-0ffa9b55c39a";
 
-const PENDING_ACTION_KEY = "meva_pending_action";
-
 function getMevaIdFromPath() {
   const rawPath = window.location.pathname;
   const path =
@@ -32,31 +30,6 @@ function getMevaIdFromPath() {
   }
 
   return "";
-}
-
-function savePendingAction(action, mevaId) {
-  localStorage.setItem(
-    PENDING_ACTION_KEY,
-    JSON.stringify({
-      action,
-      mevaId,
-      createdAt: Date.now(),
-    })
-  );
-}
-
-function readPendingAction() {
-  try {
-    const raw = localStorage.getItem(PENDING_ACTION_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function clearPendingAction() {
-  localStorage.removeItem(PENDING_ACTION_KEY);
 }
 
 function pushDebug(setter, label, data = {}) {
@@ -376,58 +349,35 @@ export default function MevaIdPage() {
   };
 
   const beginGoogleSignIn = async (pendingAction) => {
-    savePendingAction(pendingAction, mevaId);
-    setAuthMessage("Opening Google sign-in...");
-
-    pushDebug(setDebugInfo, "begin_google_sign_in", {
-      pendingAction,
-      mevaId,
-      currentUserUid: user?.uid || null,
-      currentUserEmail: user?.email || null,
-      isMobileLike: isMobileLike(),
-    });
-
     try {
-      pushDebug(setDebugInfo, "popup_sign_in_start", {
-        mevaId,
-      });
-
       const popupResult = await signInWithPopup(auth, googleProvider);
-
+  
       pushDebug(setDebugInfo, "popup_sign_in_success", {
+        pendingAction,
         uid: popupResult.user?.uid || null,
         email: popupResult.user?.email || null,
         currentUidImmediatelyAfterPopup: auth.currentUser?.uid || null,
         currentEmailImmediatelyAfterPopup: auth.currentUser?.email || null,
       });
-
+  
       return {
         mode: "popup",
         user: popupResult.user,
       };
     } catch (popupErr) {
       console.error("Popup sign-in failed:", popupErr);
-
+  
       pushDebug(setDebugInfo, "popup_sign_in_failed", {
+        pendingAction,
         message: popupErr?.message || null,
         code: popupErr?.code || null,
       });
-
+  
       if (popupErr?.code === "auth/popup-blocked") {
-        clearPendingAction();
         setAuthMessage(
-          "Google sign-in popup was blocked. On desktop, allow popups for this site, turn off Tracking Prevention for this page if needed, then refresh and try again."
+          "Google sign-in popup was blocked. Please allow popups and try again."
         );
-
-        return {
-          mode: "failed",
-          user: null,
-        };
-      }
-
-      clearPendingAction();
-
-      if (popupErr?.code === "auth/popup-closed-by-user") {
+      } else if (popupErr?.code === "auth/popup-closed-by-user") {
         setAuthMessage("Google sign-in was closed before it finished.");
       } else if (popupErr?.code === "auth/cancelled-popup-request") {
         setAuthMessage("Google sign-in was cancelled. Please try again.");
@@ -438,14 +388,14 @@ export default function MevaIdPage() {
             : "Google sign-in failed. Please try again."
         );
       }
-
+  
       return {
         mode: "failed",
         user: null,
       };
     }
   };
-
+  
   const handleClaim = async () => {
     try {
       setActionLoading(true);
@@ -460,29 +410,13 @@ export default function MevaIdPage() {
         viewerState,
       });
       if (!user) {
-        trackInteraction("claim_click");
         const signInResult = await beginGoogleSignIn("claim");
 
         if (signInResult?.mode === "failed") return;
 
         if (signInResult?.mode === "popup" && signInResult.user) {
-          clearPendingAction();
-          setUser(signInResult.user);
 
-          await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-              unsubscribe();
-              reject(new Error("Auth session did not settle in time."));
-            }, 5000);
-
-            const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
-              if (nextUser?.uid === signInResult.user.uid) {
-                clearTimeout(timeout);
-                unsubscribe();
-                resolve();
-              }
-            });
-          });
+          await waitForAuthUser(signInResult.user.uid);
 
           pushDebug(setDebugInfo, "popup_auth_settled", {
             popupUid: signInResult.user?.uid || null,
@@ -559,7 +493,6 @@ export default function MevaIdPage() {
       setActionLoading(true);
       setActionMessage("");
       setAuthMessage("");
-      trackInteraction("unclaim_click");
 
       if (!user) {
         const signInResult = await beginGoogleSignIn("unclaim");
@@ -567,23 +500,8 @@ export default function MevaIdPage() {
         if (signInResult?.mode === "failed") return;
 
         if (signInResult?.mode === "popup" && signInResult.user) {
-          clearPendingAction();
-          setUser(signInResult.user);
 
-          await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-              unsubscribe();
-              reject(new Error("Auth session did not settle in time."));
-            }, 5000);
-
-            const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
-              if (nextUser?.uid === signInResult.user.uid) {
-                clearTimeout(timeout);
-                unsubscribe();
-                resolve();
-              }
-            });
-          });
+          await waitForAuthUser(signInResult.user.uid);
 
           pushDebug(setDebugInfo, "popup_auth_settled", {
             popupUid: signInResult.user?.uid || null,
@@ -617,6 +535,8 @@ export default function MevaIdPage() {
 
         return;
       }
+
+      trackInteraction("unclaim_click");
 
       pushDebug(setDebugInfo, "unclaim_existing_user_path_start", {
         mevaId,
