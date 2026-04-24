@@ -732,14 +732,15 @@ exports.getMevaLeaderboardProfile = onCall(async (request) => {
   const fourteenDaysMs = 14 * 24 * 60 * 60 * 1000;
   const hasFreeChange = userData.freeLeaderboardNameChangeAvailable !== false;
   const nextChangeAtMs = hasFreeChange ? 0 : lastChangedMs + fourteenDaysMs;
-  const canChangeName = hasFreeChange || nowMs >= nextChangeAtMs;
+  const cooldownRemainingMs = Math.max(0, nextChangeAtMs - nowMs);
 
   return {
     leaderboardName: userData.leaderboardName || null,
     email: request.auth.token.email || null,
-    canChangeName,
+    canChangeName: hasFreeChange || cooldownRemainingMs <= 0,
     hasFreeChange,
     nextChangeAtMs,
+    cooldownRemainingMs,
   };
 });
 

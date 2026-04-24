@@ -92,10 +92,13 @@ function maskEmail(email) {
     name.length <= 4
       ? `${name.slice(0, 1)}***${name.slice(-1)}`
       : `${name.slice(0, 2)}***${name.slice(-2)}`;
+  const dotIndex = domain.lastIndexOf(".");
+  const domainName = dotIndex > 0 ? domain.slice(0, dotIndex) : domain;
+  const domainEnd = dotIndex > 0 ? domain.slice(dotIndex) : "";
   const safeDomain =
-    domain.length <= 6
-      ? domain
-      : `${domain.slice(0, 2)}***${domain.slice(domain.lastIndexOf("."))}`;
+    domainName.length <= 4
+      ? `${domainName.slice(0, 1)}***${domainEnd}`
+      : `${domainName.slice(0, 2)}***${domainEnd}`;
   return `${safeName}@${safeDomain}`;
 }
 
@@ -112,7 +115,7 @@ function formatDuration(ms) {
 
 function getWeeklyResetMs() {
   const now = new Date();
-  const easternParts = new Intl.DateTimeFormat("en-US", {
+  const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
     year: "numeric",
     month: "2-digit",
@@ -124,7 +127,7 @@ function getWeeklyResetMs() {
     hour12: false,
   }).formatToParts(now);
 
-  const get = (type) => easternParts.find((part) => part.type === type)?.value;
+  const get = (type) => parts.find((part) => part.type === type)?.value;
   const weekday = get("weekday");
   const hour = Number(get("hour"));
   const minute = Number(get("minute"));
@@ -132,8 +135,10 @@ function getWeeklyResetMs() {
 
   const dayMap = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 };
   const currentDay = dayMap[weekday] ?? 0;
-  const minutesSinceMonday = currentDay * 1440 + hour * 60 + minute + second / 60;
+  const minutesSinceMonday =
+    currentDay * 1440 + hour * 60 + minute + second / 60;
   const weekMinutes = 7 * 1440;
+
   return Math.max(0, (weekMinutes - minutesSinceMonday) * 60000);
 }
 
@@ -174,23 +179,28 @@ export default function MevaIdPage() {
     canClaim: false,
     canUnclaim: false,
   });
+
   const [actionLoading, setActionLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const [authMessage, setAuthMessage] = useState("");
   const [debugInfo, setDebugInfo] = useState([]);
 
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isMoreOpen, setIsMoreOpen] = useState(false);
-  const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
-  const [isNameModalOpen, setIsNameModalOpen] = useState(false);
+  const [panel, setPanel] = useState(null);
+  const [moreMode, setMoreMode] = useState("main");
+  const [collectionTab, setCollectionTab] = useState("claimed");
+  const [shopTab, setShopTab] = useState("wardrobe");
+
   const [leaderboardType, setLeaderboardType] = useState("allTime");
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [leaderboardProfile, setLeaderboardProfile] = useState(null);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
+
   const [nameDraft, setNameDraft] = useState("");
   const [nameMessage, setNameMessage] = useState("");
   const [savingName, setSavingName] = useState(false);
-  const [weeklyResetText, setWeeklyResetText] = useState(formatDuration(getWeeklyResetMs()));
+  const [weeklyResetText, setWeeklyResetText] = useState(
+    formatDuration(getWeeklyResetMs())
+  );
 
   const isDebug =
     new URLSearchParams(window.location.search).get("debug") === "1";
@@ -251,30 +261,16 @@ export default function MevaIdPage() {
           setUser(redirectResult.user);
           await syncUserProfile();
 
-          pushDebug(setDebugInfo, "redirect_pending_checked", {
-            pending,
-            currentMevaId: mevaId,
-            redirectUid: redirectResult.user?.uid || null,
-            redirectEmail: redirectResult.user?.email || null,
-          });
-
           if (pending?.mevaId === mevaId) {
-            if (pending.action === "claim") {
-              pushDebug(setDebugInfo, "redirect_claim_start", { mevaId });
-              await claimMeva({ mevaId });
-              pushDebug(setDebugInfo, "redirect_claim_done", { mevaId });
-            }
+            if (pending.action === "claim") await claimMeva({ mevaId });
 
             if (pending.action === "unclaim") {
-              pushDebug(setDebugInfo, "redirect_unclaim_start", { mevaId });
               await unclaimMeva({ mevaId });
               await signOut(auth);
-              pushDebug(setDebugInfo, "redirect_unclaim_done", { mevaId });
             }
 
             clearPendingAction();
             await refreshCurrentMeva();
-            pushDebug(setDebugInfo, "redirect_refresh_done", { mevaId });
           }
         }
       } catch (err) {
@@ -290,29 +286,16 @@ export default function MevaIdPage() {
     const unsub = onAuthStateChanged(auth, async (nextUser) => {
       if (!mounted) return;
 
-      pushDebug(setDebugInfo, "auth_state_changed", {
-        hasUser: !!nextUser,
-        uid: nextUser?.uid || null,
-        email: nextUser?.email || null,
-      });
-
       setUser(nextUser || null);
       setAuthReady(true);
 
       if (nextUser) {
         setAuthMessage("");
+
         try {
           await syncUserProfile();
-          pushDebug(setDebugInfo, "sync_user_done", {
-            uid: nextUser.uid,
-            email: nextUser.email,
-          });
         } catch (err) {
           console.error("User sync failed:", err);
-          pushDebug(setDebugInfo, "sync_user_failed", {
-            message: err?.message || null,
-            code: err?.code || null,
-          });
         }
       }
     });
@@ -333,13 +316,13 @@ export default function MevaIdPage() {
         setError("");
         setMevaData({
           id: "TEST",
-          nickname: "Test Meva",
+          nickname: "",
           realName: "Kibo",
           imageUrl: KIBO_IMAGE_URL,
           isClaimed: false,
-          tapCount: 18,
+          tapCount: 382,
           ownerTapCount: 0,
-          visitorTapCount: 5,
+          visitorTapCount: 15,
         });
         return;
       }
@@ -428,26 +411,24 @@ export default function MevaIdPage() {
   const isMobileDevice = isMobileLike();
   const primaryButtonLabel = viewerState.isClaimed ? "Unclaim Meva" : "Claim Meva";
 
-  const getClientContext = async () => {
-    return {
-      location: {
-        latitude: null,
-        longitude: null,
-        accuracy: null,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
-      },
-      device: {
-        userAgent: navigator.userAgent || null,
-        language: navigator.language || null,
-        platform: navigator.platform || null,
-        screen: `${window.innerWidth}x${window.innerHeight}`,
-      },
-      metadata: {
-        source: "meva_id_page",
-        referrer: document.referrer || null,
-      },
-    };
-  };
+  const getClientContext = async () => ({
+    location: {
+      latitude: null,
+      longitude: null,
+      accuracy: null,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+    },
+    device: {
+      userAgent: navigator.userAgent || null,
+      language: navigator.language || null,
+      platform: navigator.platform || null,
+      screen: `${window.innerWidth}x${window.innerHeight}`,
+    },
+    metadata: {
+      source: "meva_id_page",
+      referrer: document.referrer || null,
+    },
+  });
 
   const saveOfflineEvent = (event) => {
     try {
@@ -466,6 +447,7 @@ export default function MevaIdPage() {
       if (!queue.length) return;
 
       const remaining = [];
+
       for (const item of queue) {
         try {
           await logMevaInteraction(item);
@@ -485,6 +467,7 @@ export default function MevaIdPage() {
   const trackInteraction = async (eventType, extraMetadata = {}) => {
     try {
       if (!mevaId) return;
+
       const context = await getClientContext();
       const payload = {
         mevaId,
@@ -551,16 +534,6 @@ export default function MevaIdPage() {
     }
 
     const viewerResult = await getMevaViewerState({ mevaId });
-    pushDebug(setDebugInfo, "viewer_state_result", {
-      mevaId,
-      isSignedIn: !!viewerResult.data?.isSignedIn,
-      isClaimed: !!viewerResult.data?.isClaimed,
-      isOwner: !!viewerResult.data?.isOwner,
-      canClaim: !!viewerResult.data?.canClaim,
-      canUnclaim: !!viewerResult.data?.canUnclaim,
-      currentUserUid: user?.uid || null,
-      currentUserEmail: user?.email || null,
-    });
 
     setViewerState({
       isSignedIn: !!viewerResult.data?.isSignedIn,
@@ -580,32 +553,16 @@ export default function MevaIdPage() {
       }
 
       const popupResult = await signInWithPopup(auth, googleProvider);
-      pushDebug(setDebugInfo, "popup_sign_in_success", {
-        pendingAction,
-        uid: popupResult.user?.uid || null,
-        email: popupResult.user?.email || null,
-        currentUidImmediatelyAfterPopup: auth.currentUser?.uid || null,
-        currentEmailImmediatelyAfterPopup: auth.currentUser?.email || null,
-      });
       return { mode: "popup", user: popupResult.user };
     } catch (popupErr) {
       console.error("Popup sign-in failed:", popupErr);
-      pushDebug(setDebugInfo, "popup_sign_in_failed", {
-        pendingAction,
-        message: popupErr?.message || null,
-        code: popupErr?.code || null,
-      });
 
       if (popupErr?.code === "auth/popup-blocked") {
-        setAuthMessage("Google sign-in popup was blocked. Please allow popups and try again.");
+        setAuthMessage("Google sign-in popup was blocked.");
       } else if (popupErr?.code === "auth/popup-closed-by-user") {
         setAuthMessage("Google sign-in was closed before it finished.");
-      } else if (popupErr?.code === "auth/cancelled-popup-request") {
-        setAuthMessage("Google sign-in was cancelled. Please try again.");
       } else {
-        setAuthMessage(
-          popupErr?.code ? `Google sign-in failed: ${popupErr.code}` : "Google sign-in failed. Please try again."
-        );
+        setAuthMessage("Google sign-in failed. Please try again.");
       }
 
       return { mode: "failed", user: null };
@@ -617,14 +574,6 @@ export default function MevaIdPage() {
       setActionLoading(true);
       setActionMessage("");
       setAuthMessage("");
-      pushDebug(setDebugInfo, "handle_claim_clicked", {
-        mevaId,
-        currentUserUid: user?.uid || null,
-        currentUserEmail: user?.email || null,
-        authCurrentUid: auth.currentUser?.uid || null,
-        authCurrentEmail: auth.currentUser?.email || null,
-        viewerState,
-      });
 
       if (!user) {
         const signInResult = await beginGoogleSignIn("claim");
@@ -648,16 +597,9 @@ export default function MevaIdPage() {
       await claimMeva({ mevaId });
       await refreshCurrentMeva();
       setAuthMessage("");
-      setIsMoreOpen(false);
-      setIsMenuOpen(false);
+      closePanels();
     } catch (err) {
       console.error("Claim failed:", err);
-      pushDebug(setDebugInfo, "claim_call_failed", {
-        message: err?.message || null,
-        code: err?.code || null,
-        name: err?.name || null,
-        details: err?.details || null,
-      });
       setActionMessage(err?.message || "We couldn’t claim this Meva right now.");
     } finally {
       setActionLoading(false);
@@ -694,25 +636,22 @@ export default function MevaIdPage() {
       await signOut(auth);
       await refreshCurrentMeva();
       setAuthMessage("");
-      setIsMoreOpen(false);
-      setIsMenuOpen(false);
+      closePanels();
     } catch (err) {
       console.error("Unclaim failed:", err);
-      pushDebug(setDebugInfo, "unclaim_call_failed", {
-        message: err?.message || null,
-        code: err?.code || null,
-        name: err?.name || null,
-        details: err?.details || null,
-      });
       setActionMessage(err?.message || "We couldn’t unclaim this Meva right now.");
     } finally {
       setActionLoading(false);
     }
   };
 
+  const closePanels = () => {
+    setPanel(null);
+    setMoreMode("main");
+  };
+
   const openLeaderboard = async (type = "allTime") => {
-    setIsMenuOpen(false);
-    setIsLeaderboardOpen(true);
+    setPanel("leaderboard");
     setLeaderboardType(type);
     await fetchLeaderboard(type);
   };
@@ -721,7 +660,7 @@ export default function MevaIdPage() {
     const profile = await fetchLeaderboardProfile();
     setNameDraft(profile?.leaderboardName || "");
     setNameMessage("");
-    setIsNameModalOpen(true);
+    setPanel("name");
   };
 
   const saveLeaderboardName = async (payload) => {
@@ -745,17 +684,13 @@ export default function MevaIdPage() {
     }
   };
 
-  const renderCardShell = (content) => (
-    <div className="relative mx-auto min-h-[calc(100vh-24px)] w-full max-w-[430px] overflow-hidden select-none [-webkit-user-select:none] [-webkit-touch-callout:none]">
-      <a
-        href="/m"
-        aria-label="Back to Meva"
-        className="absolute left-0 top-3 z-20"
-      >
+  const renderMainShell = (content) => (
+    <div className="relative mx-auto min-h-[calc(100vh-20px)] w-full max-w-[430px] overflow-hidden select-none [-webkit-user-select:none] [-webkit-touch-callout:none]">
+      <a href="/m" aria-label="Back to Meva" className="absolute left-0 top-[70px] z-20">
         <img
           src={MEVA_LOGO_URL}
           alt="Meva logo"
-          className="h-[138px] w-auto object-contain select-none pointer-events-none"
+          className="h-[142px] w-auto object-contain select-none pointer-events-none"
           draggable="false"
         />
       </a>
@@ -763,13 +698,36 @@ export default function MevaIdPage() {
       <button
         type="button"
         aria-label="Open menu"
-        onClick={() => setIsMenuOpen(true)}
-        className="absolute right-2 top-8 z-20 flex h-[58px] w-[58px] items-center justify-center rounded-full bg-white/90 text-[28px] font-black text-[#6B5C96] shadow-[0_12px_30px_rgba(95,72,150,0.10)]"
+        onClick={() => setPanel("menu")}
+        className="absolute right-[18px] top-[50px] z-20 flex h-[72px] w-[72px] items-center justify-center rounded-full bg-white/90 text-[34px] font-black text-[#6B5C96] shadow-[0_16px_42px_rgba(95,72,150,0.12)]"
       >
         ≡
       </button>
 
       {content}
+    </div>
+  );
+
+  const ModalShell = ({ children, large = false }) => (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#30215A]/38 px-4 backdrop-blur-sm"
+      onClick={closePanels}
+    >
+      <div
+        className={`relative w-full ${
+          large ? "max-w-[420px]" : "max-w-[380px]"
+        } rounded-[32px] bg-white/95 p-5 text-center shadow-[0_24px_80px_rgba(48,33,90,0.24)]`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={closePanels}
+          className="absolute right-4 top-4 flex h-[42px] w-[42px] items-center justify-center rounded-full bg-white text-[22px] font-black text-[#6B5C96] shadow-[0_8px_22px_rgba(95,72,150,0.10)]"
+        >
+          ×
+        </button>
+        {children}
+      </div>
     </div>
   );
 
@@ -784,47 +742,18 @@ export default function MevaIdPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[#F4F1FB] px-4 pt-5">
-        {renderCardShell(
-          <>
-            <h1 className="mx-auto mt-28 max-w-[320px] text-center text-[28px] font-black leading-[1.02] tracking-[-0.03em] text-[#30215A]">
-              Couldn’t load Meva.
-            </h1>
-            <p className="mx-auto mt-4 max-w-[330px] text-center text-[15px] leading-8 text-[#766F91]">
-              {error}
-            </p>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  if (notFound) {
+  if (error || notFound) {
     return (
       <div className="min-h-screen bg-[#EAF1FB] px-4 pt-5">
-        {renderCardShell(
-          <>
-            <div className="mt-28 flex justify-center">
-              <div className="relative flex h-[146px] w-[146px] items-center justify-center">
-                <div className="absolute h-[122px] w-[122px] rounded-full bg-[radial-gradient(circle_at_32%_28%,#F2ECFF_0%,#DDD2FF_38%,#C6C7FF_70%,#AECFFF_100%)]" />
-                <img
-                  src={KIBO_IMAGE_URL}
-                  alt="Kibo"
-                  draggable="false"
-                  className="relative z-10 h-[108px] w-auto select-none object-contain pointer-events-none"
-                  style={{ animation: "mevaFloat 3.6s ease-in-out infinite" }}
-                />
-              </div>
-            </div>
-            <h1 className="mx-auto mt-5 max-w-[320px] text-center text-[28px] font-black leading-[1.02] tracking-[-0.03em] text-[#30215A]">
-              Meva page not found.
+        {renderMainShell(
+          <div className="pt-[230px] text-center">
+            <h1 className="mx-auto max-w-[320px] text-[28px] font-black leading-[1.02] tracking-[-0.03em] text-[#30215A]">
+              {error ? "Couldn’t load Meva." : "Meva page not found."}
             </h1>
-            <p className="mx-auto mt-4 max-w-[330px] text-center text-[15px] leading-8 text-[#766F91]">
-              This Meva ID does not exist yet.
+            <p className="mx-auto mt-4 max-w-[330px] text-[15px] leading-8 text-[#766F91]">
+              {error || "This Meva ID does not exist yet."}
             </p>
-          </>
+          </div>
         )}
       </div>
     );
@@ -833,24 +762,24 @@ export default function MevaIdPage() {
   return (
     <>
       <div className="min-h-screen overflow-hidden bg-[#EAF1FB] px-4 pt-3 select-none [-webkit-user-select:none] [-webkit-touch-callout:none]">
-        {renderCardShell(
+        {renderMainShell(
           <>
-            <div className="flex justify-center pt-4">
-              <div className="flex items-center gap-2">
-                <div className="rounded-full bg-white/85 px-4 py-2 text-[13px] font-black text-[#7B6F9E] shadow-sm">
-                  Visited {mevaData?.tapCount ?? 0}
+            <div className="flex justify-center pt-[38px]">
+              <div className="flex flex-col items-center gap-2">
+                <div className="rounded-full bg-white/85 px-7 py-2 text-[15px] font-black text-[#7B6F9E] shadow-sm">
+                  Visited{mevaData?.tapCount ?? 0}
                 </div>
-                <div className="rounded-full bg-white/85 px-4 py-2 text-[13px] font-black text-[#7B6F9E] shadow-sm">
-                  Fed {mevaData?.visitorTapCount ?? 0}
+                <div className="rounded-full bg-white/85 px-7 py-2 text-[15px] font-black text-[#7B6F9E] shadow-sm">
+                  Fed{mevaData?.visitorTapCount ?? 0}
                 </div>
               </div>
             </div>
 
-            <div className="mt-[150px] flex justify-center">
-              <div className="relative flex h-[210px] w-full items-start justify-center">
-                <div className="absolute left-1/2 top-0 -translate-x-1/2 rounded-[20px] bg-white px-5 py-2 text-[14px] font-bold text-[#5E537F] shadow-sm">
+            <div className="mt-[250px] flex justify-center">
+              <div className="relative flex h-[220px] w-full items-start justify-center">
+                <div className="absolute left-1/2 top-0 -translate-x-1/2 rounded-[22px] bg-white px-6 py-3 text-[18px] font-black text-[#5E537F] shadow-sm">
                   {viewerState.isOwner ? "you found me" : "feed me"}
-                  <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-l-[9px] border-r-[9px] border-t-[10px] border-l-transparent border-r-transparent border-t-white" />
+                  <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-l-[11px] border-r-[11px] border-t-[13px] border-l-transparent border-r-transparent border-t-white" />
                 </div>
 
                 <img
@@ -862,7 +791,7 @@ export default function MevaIdPage() {
                     await trackInteraction("tap");
                     setActionMessage("Fed.");
                   }}
-                  className="absolute top-[52px] z-10 h-[118px] w-auto cursor-pointer select-none object-contain [-webkit-user-drag:none] pointer-events-auto"
+                  className="absolute top-[66px] z-10 h-[124px] w-auto cursor-pointer select-none object-contain [-webkit-user-drag:none]"
                   style={{
                     animation: "mevaFloat 3.6s ease-in-out infinite",
                     WebkitTouchCallout: "none",
@@ -873,15 +802,15 @@ export default function MevaIdPage() {
               </div>
             </div>
 
-            <div className="mt-1 flex justify-center">
-              <div className="rounded-full bg-white/90 px-5 py-2 text-[16px] font-black text-[#625683] shadow-sm">
+            <div className="mt-[90px] flex justify-center">
+              <div className="rounded-full bg-white/90 px-6 py-3 text-[18px] font-black text-[#625683] shadow-sm">
                 {displayName}
               </div>
             </div>
 
-            <div className="mx-auto mt-4 max-w-[300px] rounded-[22px] bg-white/85 px-4 py-3 text-center shadow-sm">
-              <p className="text-[14px] font-semibold leading-6 text-[#7D729B]">
-                Tap to feed · Hold for quiet
+            <div className="mx-auto mt-5 max-w-[320px] rounded-[24px] bg-white/85 px-4 py-3 text-center shadow-sm">
+              <p className="text-[14px] font-semibold leading-6 text-[#625F7A]">
+                Tap to feed · Hold for a quiet moment
                 <br />
                 Drag the one that’s awake
               </p>
@@ -900,7 +829,7 @@ export default function MevaIdPage() {
             ) : null}
 
             {isDebug ? (
-              <div className="mt-4 max-h-[180px] overflow-auto rounded-[18px] bg-[#EEF4FD] p-4 text-left text-[12px] leading-5 text-[#4D406D]">
+              <div className="mt-4 max-h-[160px] overflow-auto rounded-[18px] bg-[#EEF4FD] p-4 text-left text-[12px] leading-5 text-[#4D406D]">
                 <p className="font-extrabold">Debug</p>
                 <p>User UID: {user?.uid || "none"}</p>
                 <p>User Email: {user?.email || "none"}</p>
@@ -909,7 +838,7 @@ export default function MevaIdPage() {
                 <p>isOwner: {String(viewerState.isOwner)}</p>
                 <p>canClaim: {String(viewerState.canClaim)}</p>
                 <p>canUnclaim: {String(viewerState.canUnclaim)}</p>
-                <div className="mt-3 max-h-[120px] overflow-auto rounded-[12px] bg-white p-3">
+                <div className="mt-3 max-h-[110px] overflow-auto rounded-[12px] bg-white p-3">
                   {debugInfo.map((item, index) => (
                     <div key={`${item.time}-${index}`} className="mb-3">
                       <p className="font-bold">{item.label}</p>
@@ -925,227 +854,422 @@ export default function MevaIdPage() {
         )}
       </div>
 
-      {isMenuOpen ? (
-        <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-[#30215A]/35 px-4 backdrop-blur-sm"
-          onClick={() => {
-            setIsMenuOpen(false);
-            setIsMoreOpen(false);
-          }}
-        >
-          <div
-            className="relative w-full max-w-[360px] rounded-[30px] bg-white p-5 text-center shadow-[0_24px_70px_rgba(48,33,90,0.20)]"
-            onClick={(e) => e.stopPropagation()}
-          >
+      {panel === "menu" ? (
+        <ModalShell>
+          <p className="mb-4 text-[18px] font-black tracking-[0.14em] text-[#8A7CA8]">
+            MEVA MENU
+          </p>
+
+          {[
+            ["Leaderboard", "See collectors and rankings", () => openLeaderboard("allTime")],
+            ["My Meva / Collection", "Open claimed, seen, and collection views", () => setPanel("collection")],
+            ["Wardrobe / Shop", "Browse cosmetics, themes, and future items", () => setPanel("shop")],
+            ["More", "Rename, claim, bug report, and play mode", () => setPanel("more")],
+          ].map(([title, subtitle, onClick]) => (
+            <button
+              key={title}
+              type="button"
+              onClick={onClick}
+              className="mb-3 w-full rounded-[22px] bg-white px-5 py-4 text-left shadow-sm"
+            >
+              <p className="text-[17px] font-black text-[#4D406D]">{title}</p>
+              <p className="mt-1 text-[14px] font-semibold leading-5 text-[#8A7CA8]">
+                {subtitle}
+              </p>
+            </button>
+          ))}
+        </ModalShell>
+      ) : null}
+
+      {panel === "leaderboard" ? (
+        <ModalShell large>
+          <p className="mb-1 text-[22px] font-black text-[#30215A]">Top collectors</p>
+          <p className="mb-5 text-[15px] font-black uppercase tracking-[0.18em] text-[#8A7CA8]">
+            Top collectors
+          </p>
+
+          <div className="mb-3 grid grid-cols-2 gap-3 rounded-[26px] bg-[#F4F1FB] p-2">
             <button
               type="button"
-              onClick={() => {
-                setIsMenuOpen(false);
-                setIsMoreOpen(false);
+              onClick={async () => {
+                setLeaderboardType("allTime");
+                await fetchLeaderboard("allTime");
               }}
-              className="absolute right-4 top-4 flex h-[36px] w-[36px] items-center justify-center rounded-full bg-[#F4F1FB] text-[18px] font-black text-[#6B5C96]"
+              className={`h-[52px] rounded-[22px] text-[16px] font-black ${
+                leaderboardType === "allTime"
+                  ? "bg-white text-[#5A4D82] shadow-sm"
+                  : "text-[#6B5C96]"
+              }`}
             >
-              ×
+              All Time
             </button>
+            <button
+              type="button"
+              onClick={async () => {
+                setLeaderboardType("weekly");
+                await fetchLeaderboard("weekly");
+              }}
+              className={`h-[52px] rounded-[22px] text-[16px] font-black ${
+                leaderboardType === "weekly"
+                  ? "bg-white text-[#5A4D82] shadow-sm"
+                  : "text-[#6B5C96]"
+              }`}
+            >
+              Weekly
+            </button>
+          </div>
 
-            <p className="mb-5 text-center text-[18px] font-black text-[#30215A]">
-              MEVA MENU
+          {leaderboardType === "weekly" ? (
+            <p className="mb-4 text-[14px] font-black text-[#5A4D82]">
+              Weekly leaderboard resets in {weeklyResetText}.
+            </p>
+          ) : null}
+
+          <div className="min-h-[155px] max-h-[210px] space-y-2 overflow-y-auto rounded-[24px] bg-[#F8F6FD] p-3">
+            {loadingLeaderboard ? (
+              <p className="py-10 text-center text-[15px] font-bold text-[#8A7CA8]">
+                Loading...
+              </p>
+            ) : leaderboardData.length === 0 ? (
+              <p className="py-10 text-center text-[15px] font-bold text-[#8A7CA8]">
+                No leaderboard data yet.
+              </p>
+            ) : (
+              leaderboardData.map((item, index) => (
+                <div
+                  key={item.uid}
+                  className="flex items-center justify-between rounded-[18px] bg-white px-4 py-3 shadow-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#EFE8FB] text-[14px] font-black text-[#6B5C96]">
+                      {index + 1}
+                    </div>
+                    <p className="text-[15px] font-black text-[#5A4D82]">
+                      {item.leaderboardName}
+                    </p>
+                  </div>
+                  <p className="text-[15px] font-black text-[#7B6F9E]">
+                    {item.score}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="mt-4 rounded-[24px] bg-[#F4F1FB] p-4 text-center">
+            <p className="text-[15px] font-black text-[#5A4D82]">
+              {user ? leaderboardProfile?.leaderboardName || "Choose your name" : "Sign in to join"}
+            </p>
+            <p className="mt-1 text-[13px] font-bold text-[#8A7CA8]">
+              {user?.email ? maskEmail(user.email) : "Claim a Meva first to compete."}
             </p>
 
+            {user ? (
+              <button
+                type="button"
+                onClick={openNameModal}
+                className="mt-3 h-[46px] w-full rounded-[18px] bg-white text-[14px] font-black text-[#6B5C96] shadow-sm"
+              >
+                Change leaderboard name
+              </button>
+            ) : null}
+
+            <p className="mt-3 text-[12px] font-bold text-[#9B8FB5]">
+              Your first name change is free. After that, names unlock every 14 days.
+            </p>
+          </div>
+        </ModalShell>
+      ) : null}
+
+      {panel === "name" ? (
+        <ModalShell>
+          <p className="mb-1 text-[20px] font-black text-[#30215A]">
+            Leaderboard name
+          </p>
+          <p className="mb-4 text-[13px] font-bold text-[#8A7CA8]">
+            3–12 letters or numbers.
+          </p>
+
+          <input
+            value={nameDraft}
+            onChange={(e) =>
+              setNameDraft(e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 12))
+            }
+            placeholder="Kibo123"
+            className="h-[54px] w-full rounded-[20px] border border-[#E6DEF8] bg-white px-4 text-center text-[18px] font-black text-[#5A4D82] outline-none"
+          />
+
+          {leaderboardProfile?.cooldownRemainingMs > 0 ? (
+            <p className="mt-3 text-[13px] font-bold text-[#B45E7F]">
+              You can change your name in {formatDuration(leaderboardProfile.cooldownRemainingMs)}.
+            </p>
+          ) : nameMessage ? (
+            <p className="mt-3 text-[13px] font-bold text-[#6B5C96]">{nameMessage}</p>
+          ) : null}
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => openLeaderboard("allTime")}
-              className="mb-3 w-full rounded-[22px] bg-[#F4F1FB] px-5 py-4 text-center shadow-sm"
+              onClick={() => saveLeaderboardName({ generate: true })}
+              disabled={savingName || leaderboardProfile?.cooldownRemainingMs > 0}
+              className="h-[50px] rounded-[18px] bg-white text-[14px] font-black text-[#6B5C96] shadow-sm disabled:opacity-50"
             >
-              <p className="text-[16px] font-black text-[#5A4D82]">Leaderboard</p>
+              Generate
             </button>
-
             <button
               type="button"
-              onClick={() => setIsMoreOpen((prev) => !prev)}
-              className="w-full rounded-[22px] bg-[#F4F1FB] px-5 py-4 text-center shadow-sm"
+              onClick={() => saveLeaderboardName({ name: nameDraft })}
+              disabled={savingName || leaderboardProfile?.cooldownRemainingMs > 0}
+              className="h-[50px] rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white disabled:opacity-50"
             >
-              <p className="text-[16px] font-black text-[#5A4D82]">More</p>
+              {savingName ? "Saving..." : "Save"}
             </button>
+          </div>
+        </ModalShell>
+      ) : null}
 
-            {isMoreOpen ? (
-              <div className="mt-3 rounded-[22px] bg-[#F8F6FD] p-3">
+      {panel === "collection" ? (
+        <ModalShell large>
+          <p className="mb-6 text-[22px] font-black text-[#30215A]">Your Mevas</p>
+          <p className="mb-4 text-left text-[16px] font-black uppercase tracking-[0.18em] text-[#8A7CA8]">
+            Library
+          </p>
+
+          <div className="mb-4 grid grid-cols-3 gap-3">
+            {["claimed", "seen", "collection"].map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setCollectionTab(tab)}
+                className={`h-[50px] rounded-[22px] text-[15px] font-black capitalize ${
+                  collectionTab === tab
+                    ? "bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-white shadow-sm"
+                    : "bg-[#F8F6FD] text-[#6B5C96]"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          {collectionTab === "claimed" ? (
+            <>
+              <div className="mb-4 rounded-full bg-white px-4 py-2 text-left text-[14px] font-bold text-[#7D729B] shadow-sm">
+                On screen: 1 / 4
+              </div>
+              <div className="rounded-[24px] border border-[#CDBDFF] bg-[#F8F6FD] p-4 text-left">
+                <div className="flex items-center justify-between">
+                  <p className="text-[18px] font-black text-[#30215A]">Kibo</p>
+                  <p className="rounded-full bg-[#E7DFFF] px-3 py-1 text-[13px] font-black text-[#6B5C96]">
+                    ★ Owned
+                  </p>
+                </div>
+                <p className="mt-2 text-[14px] font-semibold text-[#7D729B]">Active</p>
+              </div>
+            </>
+          ) : collectionTab === "seen" ? (
+            <div className="rounded-[24px] bg-[#F8F6FD] p-5 text-center text-[15px] font-bold text-[#7D729B]">
+              Seen Mevas will appear here.
+            </div>
+          ) : (
+            <>
+              <p className="mb-3 text-left text-[16px] font-black uppercase tracking-[0.18em] text-[#8A7CA8]">
+                Progress
+              </p>
+              <div className="mb-4 rounded-[24px] bg-[#F8F6FD] p-4 text-left">
+                <p className="text-[15px] font-bold text-[#7D729B]">Claimed progress</p>
+                <div className="mt-3 h-[10px] overflow-hidden rounded-full bg-[#E7DFFF]">
+                  <div className="h-full w-[18%] rounded-full bg-[#8D76F6]" />
+                </div>
+                <p className="mt-3 text-[16px] font-black text-[#5A4D82]">1 / 6 collected</p>
+              </div>
+
+              <div className="space-y-3 text-left">
+                {["Kibo", "Luma", "Miso", "Pip"].map((name, index) => (
+                  <div key={name} className="rounded-[22px] bg-[#F8F6FD] p-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[17px] font-black text-[#30215A]">{name}</p>
+                      <p className="rounded-full bg-[#E7DFFF] px-3 py-1 text-[13px] font-black text-[#6B5C96]">
+                        {index < 3 ? "★ Owned" : "Seen"}
+                      </p>
+                    </div>
+                    <p className="mt-2 text-[14px] font-semibold text-[#7D729B]">
+                      {index < 3 ? "Claimed on device" : "Seen"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </ModalShell>
+      ) : null}
+
+      {panel === "shop" ? (
+        <ModalShell large>
+          <p className="mb-6 text-[22px] font-black text-[#30215A]">Looks & extras</p>
+          <p className="mb-4 text-left text-[16px] font-black uppercase tracking-[0.18em] text-[#8A7CA8]">
+            Browse
+          </p>
+          <div className="mb-5 grid grid-cols-2 gap-3">
+            {["wardrobe", "shop"].map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setShopTab(tab)}
+                className={`h-[52px] rounded-[22px] text-[16px] font-black capitalize ${
+                  shopTab === tab
+                    ? "bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-white shadow-sm"
+                    : "bg-[#F8F6FD] text-[#6B5C96]"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          <div className="rounded-[24px] bg-[#F8F6FD] p-5 text-left text-[16px] leading-7 text-[#7D729B]">
+            {shopTab === "wardrobe"
+              ? "Equipped cosmetics, tags, and themes will go here."
+              : "Shop items, accessories, and themes will go here."}
+          </div>
+        </ModalShell>
+      ) : null}
+
+      {panel === "more" ? (
+        <ModalShell large>
+          <p className="mb-6 text-[22px] font-black text-[#30215A]">More to explore</p>
+
+          {moreMode === "main" ? (
+            <>
+              <p className="mb-3 text-[16px] font-black uppercase tracking-[0.18em] text-[#8A7CA8]">
+                Info
+              </p>
+              <div className="mb-4 grid grid-cols-2 gap-3">
+                <button className="h-[50px] rounded-[22px] bg-[#F8F6FD] text-[15px] font-black text-[#5A4D82]" onClick={() => setMoreMode("about")}>
+                  About Meva
+                </button>
+                <button className="h-[50px] rounded-[22px] bg-[#F8F6FD] text-[15px] font-black text-[#5A4D82]" onClick={() => setMoreMode("guide")}>
+                  Help
+                </button>
+              </div>
+
+              <p className="mb-3 text-[16px] font-black uppercase tracking-[0.18em] text-[#8A7CA8]">
+                Actions
+              </p>
+              <div className="mb-4 grid grid-cols-2 gap-3">
                 <button
-                  type="button"
+                  className="h-[50px] rounded-[22px] bg-[#F8F6FD] text-[15px] font-black text-[#5A4D82]"
                   onClick={() => {
                     if (!isMobileDevice) {
                       setAuthMessage("Please open this Meva on your phone to claim or unclaim.");
-                      setIsMenuOpen(false);
+                      closePanels();
                       return;
                     }
                     return viewerState.isClaimed ? handleUnclaim() : handleClaim();
                   }}
-                  disabled={actionLoading}
-                  className="h-[50px] w-full rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white disabled:opacity-60"
                 >
                   {actionLoading ? "Please wait..." : primaryButtonLabel}
                 </button>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
-      {isLeaderboardOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#30215A]/40 px-4 backdrop-blur-sm"
-          onClick={() => setIsLeaderboardOpen(false)}
-        >
-          <div
-            className="relative w-full max-w-[420px] rounded-[32px] bg-white p-5 text-center shadow-[0_24px_80px_rgba(48,33,90,0.24)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setIsLeaderboardOpen(false)}
-              className="absolute right-4 top-4 flex h-[38px] w-[38px] items-center justify-center rounded-full bg-[#F4F1FB] text-[18px] font-black text-[#6B5C96]"
-            >
-              ×
-            </button>
-
-            <p className="mb-4 text-center text-[22px] font-black text-[#30215A]">
-              Top collectors
-            </p>
-
-            <div className="mb-3 grid grid-cols-2 gap-2 rounded-[20px] bg-[#F4F1FB] p-1">
-              <button
-                type="button"
-                onClick={async () => {
-                  setLeaderboardType("allTime");
-                  await fetchLeaderboard("allTime");
-                }}
-                className={`h-[42px] rounded-[16px] text-[14px] font-black ${
-                  leaderboardType === "allTime" ? "bg-white text-[#5A4D82] shadow-sm" : "text-[#8A7CA8]"
-                }`}
-              >
-                All Time
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  setLeaderboardType("weekly");
-                  await fetchLeaderboard("weekly");
-                }}
-                className={`h-[42px] rounded-[16px] text-[14px] font-black ${
-                  leaderboardType === "weekly" ? "bg-white text-[#5A4D82] shadow-sm" : "text-[#8A7CA8]"
-                }`}
-              >
-                Weekly
-              </button>
-            </div>
-
-            {leaderboardType === "weekly" ? (
-              <p className="mb-3 text-center text-[13px] font-bold text-[#8A7CA8]">
-                Weekly leaderboard resets in {weeklyResetText}.
-              </p>
-            ) : null}
-
-            <div className="min-h-[165px] max-h-[220px] space-y-2 overflow-y-auto rounded-[24px] bg-[#F8F6FD] p-3">
-              {loadingLeaderboard ? (
-                <p className="py-10 text-center text-[14px] font-bold text-[#8A7CA8]">Loading...</p>
-              ) : leaderboardData.length === 0 ? (
-                <p className="py-10 text-center text-[14px] font-bold text-[#8A7CA8]">No collectors yet.</p>
-              ) : (
-                leaderboardData.map((item, index) => (
-                  <div key={item.uid} className="flex items-center justify-between rounded-[18px] bg-white px-4 py-3 shadow-sm">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#EFE8FB] text-[14px] font-black text-[#6B5C96]">
-                        {index + 1}
-                      </div>
-                      <p className="text-[15px] font-black text-[#5A4D82]">{item.leaderboardName}</p>
-                    </div>
-                    <p className="text-[15px] font-black text-[#7B6F9E]">{item.score}</p>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="mt-4 rounded-[24px] bg-[#F4F1FB] p-4 text-center">
-              <p className="text-[15px] font-black text-[#5A4D82]">
-                {user ? leaderboardProfile?.leaderboardName || "Choose your name" : "Sign in to join"}
-              </p>
-              <p className="mt-1 text-[13px] font-bold text-[#8A7CA8]">
-                {user?.email ? maskEmail(user.email) : "Claim a Meva first to compete."}
-              </p>
-
-              {user ? (
-                <button
-                  type="button"
-                  onClick={openNameModal}
-                  className="mt-3 h-[46px] w-full rounded-[18px] bg-white text-[14px] font-black text-[#6B5C96] shadow-sm"
-                >
-                  Change leaderboard name
+                <button className="h-[50px] rounded-[22px] bg-[#F8F6FD] text-[15px] font-black text-[#5A4D82]" onClick={() => setMoreMode("support")}>
+                  Support / Contact
                 </button>
-              ) : null}
+              </div>
 
-              <p className="mt-3 text-[12px] font-bold text-[#9B8FB5]">
-                Your first name is free. After that, changes unlock every 14 days.
+              <div className="mb-5 rounded-full bg-[#F8F6FD] px-4 py-3 text-[14px] font-semibold text-[#7D729B]">
+                Leaderboard: {leaderboardProfile?.leaderboardName || "KiboCloud142"} ·{" "}
+                {user?.email ? maskEmail(user.email) : "not signed in"}
+              </div>
+
+              <p className="mb-3 text-[16px] font-black uppercase tracking-[0.18em] text-[#8A7CA8]">
+                Safety
               </p>
-            </div>
-          </div>
-        </div>
-      ) : null}
+              <button className="mb-5 h-[50px] w-full rounded-[22px] bg-[#F8F6FD] text-[15px] font-black text-[#5A4D82]" onClick={() => setMoreMode("play")}>
+                Play Mode
+              </button>
 
-      {isNameModalOpen ? (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-[#30215A]/45 px-4 backdrop-blur-sm"
-          onClick={() => setIsNameModalOpen(false)}
-        >
-          <div
-            className="relative w-full max-w-[360px] rounded-[30px] bg-white p-5 text-center shadow-[0_24px_80px_rgba(48,33,90,0.24)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setIsNameModalOpen(false)}
-              className="absolute right-4 top-4 flex h-[36px] w-[36px] items-center justify-center rounded-full bg-[#F4F1FB] text-[18px] font-black text-[#6B5C96]"
-            >
-              ×
-            </button>
+              <p className="mb-3 text-[16px] font-black uppercase tracking-[0.18em] text-[#8A7CA8]">
+                Rename
+              </p>
+              <button className="h-[50px] w-full rounded-[22px] bg-[#F8F6FD] text-[15px] font-black text-[#5A4D82]" onClick={() => setMoreMode("rename")}>
+                Rename Meva
+              </button>
+            </>
+          ) : null}
 
-            <p className="mb-2 text-[20px] font-black text-[#30215A]">Leaderboard name</p>
-            <p className="mb-4 text-[13px] font-bold text-[#8A7CA8]">3–12 letters or numbers.</p>
-
-            <input
-              value={nameDraft}
-              onChange={(e) => setNameDraft(e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 12))}
-              placeholder="Kibo123"
-              className="h-[52px] w-full rounded-[18px] border border-[#E6DEF8] bg-[#F8F6FD] px-4 text-center text-[18px] font-black text-[#5A4D82] outline-none"
+          {moreMode === "about" ? (
+            <InnerInfo
+              title="About Meva"
+              lines={[
+                "Meva started as a small thing I built by hand.",
+                "It’s meant to feel a little alive — something you can feed, linger with, and leave a tiny fingerprint on.",
+                "Given time, each Meva picks up its own little history.",
+                "Still early. Still finding its voice.",
+                "Glad you’re here for the quiet beginnings.",
+              ]}
+              onClose={() => setMoreMode("main")}
             />
+          ) : null}
 
-            {leaderboardProfile?.cooldownRemainingMs > 0 ? (
-              <p className="mt-3 text-[13px] font-bold text-[#B45E7F]">
-                You can change your name in {formatDuration(leaderboardProfile.cooldownRemainingMs)}.
+          {moreMode === "guide" ? (
+            <InnerInfo
+              title="A little guide"
+              lines={[
+                "Tap to feed — they usually answer back.",
+                "Hold a little longer and they may respond more softly.",
+                "Drag the active Meva if you want them closer.",
+                "You can keep up to four on screen at once.",
+                "Claiming a Meva makes it yours on this device.",
+                "Everything builds slowly over time.",
+              ]}
+              onClose={() => setMoreMode("main")}
+            />
+          ) : null}
+
+          {moreMode === "support" ? (
+            <div className="text-center">
+              <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-5 h-[62px] w-auto pointer-events-none" draggable="false" />
+              <p className="mb-2 text-[22px] font-black text-[#30215A]">Support / Contact Us</p>
+              <p className="mx-auto mb-5 max-w-[320px] text-[16px] leading-7 text-[#6B5C96]">
+                Report a bug, ask a question, or send a quick message if you need help.
               </p>
-            ) : nameMessage ? (
-              <p className="mt-3 text-[13px] font-bold text-[#6B5C96]">{nameMessage}</p>
-            ) : null}
-
-            <div className="mt-4 grid grid-cols-1 gap-2">
-              <button
-                type="button"
-                onClick={() => saveLeaderboardName({ generate: true })}
-                disabled={savingName || leaderboardProfile?.cooldownRemainingMs > 0}
-                className="h-[48px] rounded-[18px] bg-[#F4F1FB] text-[14px] font-black text-[#6B5C96] disabled:opacity-50"
-              >
-                Generate random name
-              </button>
-              <button
-                type="button"
-                onClick={() => saveLeaderboardName({ name: nameDraft })}
-                disabled={savingName || leaderboardProfile?.cooldownRemainingMs > 0}
-                className="h-[50px] rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white disabled:opacity-50"
-              >
-                {savingName ? "Saving..." : "Save"}
-              </button>
+              <input className="mb-3 h-[50px] w-full rounded-[18px] border border-[#E6DEF8] px-4 text-[15px] outline-none" placeholder="Short summary" />
+              <textarea className="mb-3 h-[120px] w-full resize-none rounded-[18px] border border-[#E6DEF8] p-4 text-[15px] outline-none" placeholder="What were you doing, and what went wrong?" />
+              <input className="mb-4 h-[50px] w-full rounded-[18px] border border-[#E6DEF8] px-4 text-[15px] outline-none" placeholder="Contact email (optional)" />
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => setMoreMode("main")} className="h-[50px] rounded-[18px] bg-white text-[15px] font-black text-[#6B5C96] shadow-sm">Cancel</button>
+                <button onClick={() => setMoreMode("main")} className="h-[50px] rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white">Send</button>
+              </div>
             </div>
-          </div>
-        </div>
+          ) : null}
+
+          {moreMode === "play" ? (
+            <div className="text-center">
+              <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-8 h-[62px] w-auto pointer-events-none" draggable="false" />
+              <p className="mb-3 text-[22px] font-black text-[#30215A]">Play Mode</p>
+              <p className="mx-auto mb-5 max-w-[320px] text-[16px] leading-7 text-[#6B5C96]">
+                Lock menus and controls so Mevas can be played with safely.
+              </p>
+              <input className="mb-5 h-[54px] w-full rounded-[18px] border border-[#CDBDFF] px-4 text-[16px] outline-none" placeholder="Optional 4-digit PIN" maxLength={4} inputMode="numeric" />
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => setMoreMode("main")} className="h-[50px] rounded-[18px] bg-white text-[15px] font-black text-[#6B5C96] shadow-sm">Cancel</button>
+                <button onClick={() => setMoreMode("main")} className="h-[50px] rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white">Start</button>
+              </div>
+            </div>
+          ) : null}
+
+          {moreMode === "rename" ? (
+            <div className="text-center">
+              <p className="mb-1 text-[22px] font-black text-[#30215A]">Rename Meva</p>
+              <p className="mb-4 text-[15px] font-semibold text-[#6B5C96]">Preview: {displayName}</p>
+              <input className="mb-5 h-[54px] w-full rounded-[18px] border border-[#E6DEF8] px-4 text-[16px] outline-none" placeholder={`Nickname for ${mevaData?.realName || "Meva"}`} />
+              <div className="grid grid-cols-2 gap-3">
+                <button className="h-[50px] rounded-[18px] bg-white text-[15px] font-black text-[#6B5C96] shadow-sm">Generate</button>
+                <button className="h-[50px] rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white">Save</button>
+              </div>
+              <button onClick={() => setMoreMode("main")} className="mt-4 text-[14px] font-bold text-[#7D729B]">Cancel</button>
+            </div>
+          ) : null}
+        </ModalShell>
       ) : null}
 
       <style>{`
@@ -1156,5 +1280,33 @@ export default function MevaIdPage() {
         }
       `}</style>
     </>
+  );
+}
+
+function InnerInfo({ title, lines, onClose }) {
+  return (
+    <div className="text-center">
+      <img
+        src={MEVA_LOGO_URL}
+        alt="Meva"
+        className="mx-auto mb-8 h-[78px] w-auto pointer-events-none"
+        draggable="false"
+      />
+      <p className="mb-5 text-[22px] font-black text-[#30215A]">{title}</p>
+      <div className="space-y-4">
+        {lines.map((line) => (
+          <p key={line} className="text-[16px] leading-7 text-[#625F7A]">
+            {line}
+          </p>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="mt-8 h-[52px] rounded-[20px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] px-10 text-[16px] font-black text-white"
+      >
+        Close
+      </button>
+    </div>
   );
 }
