@@ -571,13 +571,16 @@ setViewerState({
 
     const viewerResult = await getMevaViewerState({ mevaId });
 
-    setViewerState({
-      isSignedIn: !!viewerResult.data?.isSignedIn,
-      isClaimed: !!viewerResult.data?.isClaimed,
-      isOwner: !!viewerResult.data?.isOwner,
-      canClaim: !!viewerResult.data?.canClaim,
-      canUnclaim: !!viewerResult.data?.canUnclaim,
-    });
+    const deviceOwner = isDeviceClaimed(mevaId);
+
+setViewerState({
+  isSignedIn: !!viewerResult.data?.isSignedIn,
+  isClaimed: !!viewerResult.data?.isClaimed,
+  isOwner: !!viewerResult.data?.isOwner,
+  canClaim: !!viewerResult.data?.canClaim,
+  canUnclaim: !!viewerResult.data?.canUnclaim,
+  isDeviceOwner: deviceOwner,
+});
   };
 
   const beginGoogleSignIn = async (pendingAction) => {
@@ -606,24 +609,36 @@ setViewerState({
   };
   const handleDeviceClaim = () => {
     setDeviceClaim(mevaId);
-  
+
     setViewerState((prev) => ({
       ...prev,
       isDeviceOwner: true,
     }));
-  
-    setActionMessage("Claimed on this device.");
+
+    setActionMessage(`${displayName} is staying with you on this device.`);
+    closePanels();
   };
-  
+
   const handleDeviceUnclaim = () => {
     removeDeviceClaim(mevaId);
-  
+
     setViewerState((prev) => ({
       ...prev,
       isDeviceOwner: false,
     }));
-  
-    setActionMessage("Removed from this device.");
+
+    setActionMessage(`${displayName} was removed from this device.`);
+    closePanels();
+  };
+
+  const handleUpgradeDeviceClaim = async () => {
+    await handleClaim();
+
+    if (auth.currentUser) {
+      removeDeviceClaim(mevaId);
+      await refreshCurrentMeva();
+      setActionMessage(`${displayName} is now saved to your Google account.`);
+    }
   };
   const handleClaim = async () => {
     try {
@@ -826,11 +841,15 @@ setViewerState({
 
   const renderMainShell = (content) => (
     <div className="relative mx-auto h-[100dvh] max-h-[100dvh] w-full max-w-[430px] overflow-hidden select-none [-webkit-user-select:none] [-webkit-touch-callout:none]">
-      <a href="/m" aria-label="Back to Meva" className="absolute left-2 top-4 z-20">
+      <a
+        href="/m"
+        aria-label="Back to Meva"
+        className="absolute left-3 top-4 z-20 flex h-[54px] w-[54px] items-center justify-center rounded-full bg-white/90 shadow-[0_12px_28px_rgba(95,72,150,0.10)]"
+      >
         <img
           src={MEVA_LOGO_URL}
           alt="Meva logo"
-          className="h-[66px] w-auto object-contain select-none pointer-events-none"
+          className="h-[42px] w-auto object-contain select-none pointer-events-none"
           draggable="false"
         />
       </a>
@@ -839,7 +858,7 @@ setViewerState({
         type="button"
         aria-label="Open menu"
         onClick={() => setPanel("menu")}
-        className="absolute right-3 top-4 z-20 flex h-[60px] w-[60px] items-center justify-center rounded-full bg-white/90 text-[28px] font-black text-[#6B5C96] shadow-[0_14px_34px_rgba(95,72,150,0.12)]"
+        className="absolute right-3 top-4 z-20 flex h-[54px] w-[54px] items-center justify-center rounded-full bg-white/90 text-[25px] font-black text-[#6B5C96] shadow-[0_12px_28px_rgba(95,72,150,0.10)]"
       >
         ≡
       </button>
@@ -904,13 +923,23 @@ setViewerState({
       <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#EAF1FB] px-4 pt-0 select-none [-webkit-user-select:none] [-webkit-touch-callout:none]">
         {renderMainShell(
           <>
-            <div className="flex justify-center pt-[16px]">
-              <div className="flex flex-col items-center gap-1.5">
-                <div className="min-w-[112px] rounded-full bg-white/85 px-4 py-1.5 text-center text-[13px] font-black text-[#7B6F9E] shadow-sm">
-                  Visited {mevaData?.tapCount ?? 0}
+            <div className="flex justify-center pt-[18px]">
+              <div className="grid grid-cols-2 gap-2 rounded-full bg-white/45 p-1.5 shadow-sm backdrop-blur-sm">
+                <div className="min-w-[86px] rounded-full bg-white/90 px-3 py-1.5 text-center">
+                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#A095B8]">
+                    Visited
+                  </p>
+                  <p className="text-[13px] font-black text-[#625683]">
+                    {mevaData?.tapCount ?? 0}
+                  </p>
                 </div>
-                <div className="min-w-[112px] rounded-full bg-white/85 px-4 py-1.5 text-center text-[13px] font-black text-[#7B6F9E] shadow-sm">
-                  Fed {mevaData?.visitorTapCount ?? 0}
+                <div className="min-w-[86px] rounded-full bg-white/90 px-3 py-1.5 text-center">
+                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#A095B8]">
+                    Fed
+                  </p>
+                  <p className="text-[13px] font-black text-[#625683]">
+                    {mevaData?.visitorTapCount ?? 0}
+                  </p>
                 </div>
               </div>
             </div>
@@ -918,7 +947,7 @@ setViewerState({
             <div className="mt-[168px] flex justify-center">
               <div className="relative flex h-[250px] w-full items-start justify-center">
                 <div className="absolute left-1/2 top-0 -translate-x-1/2 rounded-[18px] bg-white px-4 py-2 text-[14px] font-black text-[#5E537F] shadow-sm">
-                  {viewerState.isOwner ? "you found me" : "feed me"}
+                {viewerState.isOwner || viewerState.isDeviceOwner ? "you found me" : "feed me"}
                   <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-l-[10px] border-r-[10px] border-t-[12px] border-l-transparent border-r-transparent border-t-white" />
                 </div>
 
@@ -930,13 +959,14 @@ setViewerState({
                   onPointerDown={handleMevaPointerDown}
                   onPointerMove={handleMevaPointerMove}
                   onPointerUp={handleMevaPointerUp}
+                  onPointerLeave={handleMevaPointerUp}
                   onPointerCancel={() => {
                     dragRef.current.active = false;
                     setDraggingMeva(false);
                   }}
                   className={`absolute top-[54px] z-10 h-[122px] w-auto cursor-grab select-none object-contain [-webkit-user-drag:none] ${
                     draggingMeva ? "cursor-grabbing" : ""
-                  } transition-transform duration-150`}
+                  } transition-transform duration-75`}
                   style={{
                     animation:
                       mevaMood === "happy" || draggingMeva
@@ -954,17 +984,15 @@ setViewerState({
               </div>
             </div>
 
-            <div className="mt-[26px] flex justify-center">
-              <div className="rounded-full bg-white/90 px-5 py-2 text-[15px] font-black text-[#625683] shadow-sm">
+            <div className="mt-[24px] flex justify-center">
+              <div className="rounded-full bg-white/95 px-5 py-2 text-[15px] font-black text-[#5A4D82] shadow-sm">
                 {displayName}
               </div>
             </div>
 
-            <div className="mx-auto mt-2 max-w-[250px] rounded-[18px] bg-white/85 px-3 py-2 text-center shadow-sm">
-              <p className="text-[12px] font-semibold leading-5 text-[#625F7A]">
-                Tap to feed · Hold for quiet
-                <br />
-                Drag the one that’s awake
+            <div className="mx-auto mt-2 max-w-[238px] rounded-[20px] bg-white/80 px-4 py-2 text-center shadow-sm backdrop-blur-sm">
+              <p className="text-[12px] font-bold leading-5 text-[#69617F]">
+                Tap to feed · drag gently
               </p>
             </div>
 
@@ -1322,52 +1350,73 @@ setViewerState({
               <p className="mb-3 text-[16px] font-black uppercase tracking-[0.18em] text-[#8A7CA8]">
                 Actions
               </p>
-              <div className="mb-4 grid grid-cols-2 gap-3">
+              <div className="mb-4 space-y-3">
                 <button
-                  className="h-[50px] rounded-[22px] bg-[#F8F6FD] text-[15px] font-black text-[#5A4D82]"
+                  type="button"
+                  disabled={actionLoading}
                   onClick={() => {
                     if (!isMobileDevice) {
                       setAuthMessage("Please open this Meva on your phone to claim or unclaim.");
                       closePanels();
                       return;
                     }
-                    <div className="space-y-2">
-  {/* Google Claim (existing) */}
-  <button
-    type="button"
-    onClick={viewerState.isClaimed ? handleUnclaim : handleClaim}
-    className="h-[50px] w-full rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white"
-  >
-    {viewerState.isClaimed ? "Unclaim (Google)" : "Claim with Google"}
-  </button>
 
-  {/* Device Claim (NEW) */}
-  <button
-    type="button"
-    onClick={
-      viewerState.isDeviceOwner
-        ? handleDeviceUnclaim
-        : handleDeviceClaim
-    }
-    className="h-[46px] w-full rounded-[18px] bg-white text-[14px] font-black text-[#6B5C96] shadow-sm"
-  >
-    {viewerState.isDeviceOwner
-      ? "Remove from this device"
-      : "Claim on this device"}
-  </button>
-</div>
+                    if (viewerState.isClaimed) {
+                      handleUnclaim();
+                    } else {
+                      handleClaim();
+                    }
                   }}
+                  className="h-[52px] w-full rounded-[22px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white shadow-sm disabled:opacity-50"
                 >
-                  {actionLoading ? "Please wait..." : primaryButtonLabel}
+                  {actionLoading
+                    ? "Please wait..."
+                    : viewerState.isClaimed
+                    ? "Unclaim Google ownership"
+                    : viewerState.isDeviceOwner
+                    ? "Save permanently with Google"
+                    : "Claim with Google"}
                 </button>
-                <button className="h-[50px] rounded-[22px] bg-[#F8F6FD] text-[15px] font-black text-[#5A4D82]" onClick={() => setMoreMode("support")}>
+
+                {viewerState.isDeviceOwner && !viewerState.isClaimed ? (
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={handleUpgradeDeviceClaim}
+                    className="h-[48px] w-full rounded-[20px] bg-white text-[14px] font-black text-[#6B5C96] shadow-sm disabled:opacity-50"
+                  >
+                    Upgrade this device claim
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={viewerState.isDeviceOwner ? handleDeviceUnclaim : handleDeviceClaim}
+                  className="h-[48px] w-full rounded-[20px] bg-[#F8F6FD] text-[14px] font-black text-[#5A4D82]"
+                >
+                  {viewerState.isDeviceOwner ? "Remove from this device" : "Keep on this device"}
+                </button>
+
+                <p className="mx-auto max-w-[310px] text-[12px] font-bold leading-5 text-[#8A7CA8]">
+                  Device claim keeps {displayName} here only. Google claim saves ownership if you switch phones.
+                </p>
+
+                <button
+                  className="h-[50px] w-full rounded-[22px] bg-[#F8F6FD] text-[15px] font-black text-[#5A4D82]"
+                  onClick={() => setMoreMode("support")}
+                >
                   Support / Contact
                 </button>
               </div>
 
-              <div className="mb-5 rounded-full bg-[#F8F6FD] px-4 py-3 text-[14px] font-semibold text-[#7D729B]">
-                Leaderboard: {leaderboardProfile?.leaderboardName || "KiboCloud142"} ·{" "}
-                {user?.email ? maskEmail(user.email) : "not signed in"}
+              <div className="mb-5 rounded-[22px] bg-[#F8F6FD] px-4 py-3 text-center text-[14px] font-semibold text-[#7D729B]">
+                Leaderboard:{" "}
+                <span className="font-black text-[#5A4D82]">
+                  {leaderboardProfile?.leaderboardName || "KiboCloud142"}
+                </span>{" "}
+                <span>
+                  ({user?.email ? maskEmail(user.email) : "not signed in"})
+                </span>
               </div>
 
               <p className="mb-3 text-[16px] font-black uppercase tracking-[0.18em] text-[#8A7CA8]">
