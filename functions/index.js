@@ -30,6 +30,40 @@ function roundCoord(value) {
   return Math.round(value * 100) / 100;
 }
 
+function isMobileOrTabletFromDevice(device = {}, metadata = {}) {
+  const userAgent = String(device.userAgent || "").toLowerCase();
+  const screen = String(device.screen || "");
+  const isMobileFlag = metadata.isMobile === true;
+
+  if (isMobileFlag) return true;
+
+  if (
+    userAgent.includes("iphone") ||
+    userAgent.includes("ipad") ||
+    userAgent.includes("android") ||
+    userAgent.includes("mobile") ||
+    userAgent.includes("tablet")
+  ) {
+    return true;
+  }
+
+  const parts = screen.split("x").map((value) => Number(value));
+  if (parts.length === 2 && parts.every((value) => Number.isFinite(value))) {
+    const shortestSide = Math.min(parts[0], parts[1]);
+    const longestSide = Math.max(parts[0], parts[1]);
+
+    return shortestSide <= 1024 && longestSide <= 1400;
+  }
+
+  return false;
+}
+
+function getTapKey({ mevaId, actorUid, sessionId }) {
+  const safeActor = actorUid || "guest";
+  const safeSession = sessionId || "nosession";
+  return `${mevaId}_${safeActor}_${safeSession}`;
+}
+
 async function createEvent({
   eventType,
   mevaId,
@@ -359,7 +393,16 @@ exports.logMevaInteraction = onCall(async (request) => {
     source: sanitizeText(metadataPayload.source, 80),
     referrer: sanitizeText(metadataPayload.referrer, 300),
     note: sanitizeText(metadataPayload.note, 200),
+    sessionId: sanitizeText(metadataPayload.sessionId, 120),
+    path: sanitizeText(metadataPayload.path, 160),
+    isMobile: metadataPayload.isMobile === true,
   };
+
+  const isCountableTapEvent = eventType === "tap" || eventType === "feed";
+  const isMobileOrTablet = isMobileOrTabletFromDevice(safeDevice, safeMetadata);
+
+  let counted = false;
+  let countBlockReason = null;
 
   const counterUpdates = {
     updatedAt: FieldValue.serverTimestamp(),
@@ -367,17 +410,90 @@ exports.logMevaInteraction = onCall(async (request) => {
 
   if (eventType === "page_view") {
     counterUpdates.tapCount = FieldValue.increment(1);
+    counted = true;
   }
 
-  if (eventType === "tap" || eventType === "feed") {
-    if (isOwner) {
-      counterUpdates.ownerTapCount = FieldValue.increment(1);
+  if (isCountableTapEvent) {
+    if (!isMobileOrTablet) {
+      countBlockReason = "not_mobile_or_tablet";
+    } else if (!safeMetadata.sessionId) {
+      countBlockReason = "missing_session";
     } else {
-      counterUpdates.visitorTapCount = FieldValue.increment(1);
+      const tapGuardRef = db
+        .collection("mevaTapGuards")
+        .doc(getTapKey({
+          mevaId,
+          actorUid: request.auth?.uid || null,
+          sessionId: safeMetadata.sessionId,
+        }));
+
+      await db.runTransaction(async (tx) => {
+        const guardSnap = await tx.get(tapGuardRef);
+        const nowMs = Date.now();
+        const lastTapMs = guardSnap.exists
+          ? guardSnap.data()?.lastTapMs || 0
+          : 0;
+
+        const msSinceLastTap = nowMs - lastTapMs;
+
+        if (msSinceLastTap < 350) {
+          countBlockReason = "too_fast";
+          tx.set(
+            tapGuardRef,
+            {
+              mevaId,
+              actorUid: request.auth?.uid || null,
+              sessionId: safeMetadata.sessionId,
+              lastRejectedTapMs: nowMs,
+              rejectedTapCount: FieldValue.increment(1),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+          return;
+        }
+
+        counted = true;
+
+        tx.set(
+          tapGuardRef,
+          {
+            mevaId,
+            actorUid: request.auth?.uid || null,
+            sessionId: safeMetadata.sessionId,
+            lastTapMs: nowMs,
+            acceptedTapCount: FieldValue.increment(1),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        if (isOwner) {
+          tx.set(
+            mevaRef,
+            {
+              ownerTapCount: FieldValue.increment(1),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } else {
+          tx.set(
+            mevaRef,
+            {
+              visitorTapCount: FieldValue.increment(1),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+      });
     }
   }
 
-  await mevaRef.set(counterUpdates, { merge: true });
+  if (!isCountableTapEvent) {
+    await mevaRef.set(counterUpdates, { merge: true });
+  }
 
   await createEvent({
     eventType,
@@ -388,6 +504,9 @@ exports.logMevaInteraction = onCall(async (request) => {
     metadata: {
       ...safeMetadata,
       isOwner,
+      counted,
+      countBlockReason,
+      isMobileOrTablet,
     },
     location: safeLocation,
     device: safeDevice,
@@ -396,6 +515,8 @@ exports.logMevaInteraction = onCall(async (request) => {
   return {
     success: true,
     isOwner,
+    counted,
+    countBlockReason,
   };
 });
 

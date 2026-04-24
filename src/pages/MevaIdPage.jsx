@@ -80,8 +80,8 @@ function getSessionId() {
 function isMobileLike() {
   if (typeof window === "undefined") return false;
   return (
-    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
-    window.innerWidth < 768
+    /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent) ||
+    window.innerWidth < 1024
   );
 }
 
