@@ -226,7 +226,8 @@
     const [renameDraft, setRenameDraft] = useState("");
     const [renameMessage, setRenameMessage] = useState("");
     const [renamingMeva, setRenamingMeva] = useState(false);
-    const [unclaimConfirmText, setUnclaimConfirmText] = useState("");
+    const unclaimInputRef = useRef(null);
+  const unclaimButtonRef = useRef(null);
     const [notice, setNotice] = useState(null);
     const holdTimerRef = useRef(null);
     const holdActiveRef = useRef(false);
@@ -722,6 +723,7 @@
             await signOut(auth);
             await refreshCurrentMeva();
             setAuthMessage("");
+            showNotice("Unclaimed", `${displayName} is no longer saved to your Google account.`);
             return;
           }
           return;
@@ -733,7 +735,7 @@
         await signOut(auth);
         await refreshCurrentMeva();
         setAuthMessage("");
-        closePanels();
+        showNotice("Unclaimed", `${displayName} is no longer saved to your Google account.`);
       } catch (err) {
         console.error("Unclaim failed:", err);
         showNotice("Unclaim failed", err?.message || "We couldn’t unclaim this Meva right now.");
@@ -905,12 +907,12 @@
         <a
           href="/m"
           aria-label="Back to Meva"
-          className="absolute left-3 top-4 z-20 flex h-[64px] w-[64px] items-center justify-center"
+          className="absolute left-2 top-3 z-20 flex h-[72px] w-[72px] items-center justify-center"
         >
           <img
             src={MEVA_LOGO_URL}
             alt="Meva logo"
-            className="h-[70px] w-auto object-contain select-none pointer-events-none"
+            className="h-[82px] w-auto object-contain select-none pointer-events-none"
             draggable="false"
           />
         </a>
@@ -1009,8 +1011,13 @@
 
               <div className="mt-[168px] flex justify-center">
                 <div className="relative flex h-[250px] w-full items-start justify-center">
-                  <div className="absolute left-1/2 top-0 -translate-x-1/2 rounded-[18px] bg-white px-4 py-2 text-[14px] font-black text-[#5E537F] shadow-sm">
-                  {viewerState.isOwner || viewerState.isDeviceOwner ? "you found me" : "feed me"}
+                <div
+                  className="absolute left-1/2 top-0 rounded-[22px] bg-white/95 px-5 py-2.5 text-[14px] font-black text-[#5E537F] shadow-sm transition-transform duration-100 ease-out"
+                  style={{
+                    transform: `translate(calc(-50% + ${mevaPos.x}px), ${mevaPos.y}px)`,
+                  }}
+                >
+                  {viewerState.isOwner || viewerState.isDeviceOwner ? "I’m with you" : "tap me gently"}
                     <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-l-[10px] border-r-[10px] border-t-[12px] border-l-transparent border-r-transparent border-t-white" />
                   </div>
 
@@ -1032,8 +1039,10 @@
                     onPointerUp={handleMevaPointerUp}
                     onPointerCancel={() => {
                       dragRef.current.active = false;
-      holdActiveRef.current = false;
-      setDraggingMeva(false);
+                      holdActiveRef.current = false;
+                      setGlowActive(false);
+                      setMevaMood("calm");
+                      setDraggingMeva(false);
                     }}
                     className={`absolute top-[54px] z-10 h-[122px] w-auto cursor-grab select-none object-contain [-webkit-user-drag:none] ${
                       draggingMeva ? "cursor-grabbing" : ""
@@ -1052,7 +1061,7 @@
                 </div>
               </div>
 
-              <div className="mt-[24px] flex justify-center">
+              <div className="mt-[92px] flex justify-center">
                 <div className="rounded-full bg-white/95 px-5 py-2 text-[15px] font-black text-[#5A4D82] shadow-sm">
                   {displayName}
                 </div>
@@ -1096,7 +1105,7 @@
               <img
                 src={MEVA_LOGO_URL}
                 alt="Meva"
-                className="mx-auto mb-3 h-[60px] w-auto pointer-events-none"
+                className="mx-auto mb-3 h-[76px] w-auto pointer-events-none"
                 draggable="false"
               />
               <p className="mb-2 text-[22px] font-black text-[#30215A]">
@@ -1463,7 +1472,6 @@
                       }
 
                       if (viewerState.isClaimed) {
-                        setUnclaimConfirmText("");
                         setMoreMode("unclaimConfirm");
                       } else if (viewerState.isDeviceOwner) {
                         handleUpgradeDeviceClaim();
@@ -1526,7 +1534,7 @@
                 <img
                   src={MEVA_LOGO_URL}
                   alt="Meva"
-                  className="mx-auto mb-3 h-[60px] w-auto pointer-events-none"
+                  className="mx-auto mb-3 h-[76px] w-auto pointer-events-none"
                   draggable="false"
                 />
                 <p className="mb-2 text-[22px] font-black text-[#30215A]">
@@ -1536,9 +1544,18 @@
                   This removes Google ownership from your account. Other people may be able to claim this Meva after.
                 </p>
                 <input
-                  value={unclaimConfirmText}
-                  onChange={(e) => setUnclaimConfirmText(e.target.value.toLowerCase())}
+                  ref={unclaimInputRef}
+                  defaultValue=""
+                  onInput={(e) => {
+                    e.currentTarget.value = e.currentTarget.value.toLowerCase();
+                    if (unclaimButtonRef.current) {
+                      unclaimButtonRef.current.disabled = e.currentTarget.value !== "confirm" || actionLoading;
+                    }
+                  }}
                   placeholder="type confirm"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
                   className="mb-3 h-[50px] w-full rounded-[18px] border border-[#E6DEF8] bg-white px-4 text-center text-[16px] font-black text-[#5A4D82] outline-none"
                 />
                 <div className="grid grid-cols-2 gap-3">
@@ -1550,8 +1567,9 @@
                     Cancel
                   </button>
                   <button
+                    ref={unclaimButtonRef}
                     type="button"
-                    disabled={unclaimConfirmText !== "confirm" || actionLoading}
+                    disabled
                     onClick={handleUnclaim}
                     className="h-[48px] rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white disabled:opacity-40"
                   >
@@ -1592,7 +1610,7 @@
 
             {moreMode === "support" ? (
               <div className="text-center">
-                <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-3 h-[60px] w-auto pointer-events-none" draggable="false" />
+                <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-3 h-[76px] w-auto pointer-events-none" draggable="false" />
                 <p className="mb-1 text-[22px] font-black text-[#30215A]">Support / Contact Us</p>
                 <p className="mx-auto mb-4 max-w-[320px] text-[15px] leading-6 text-[#6B5C96]">
                   Report a bug, ask a question, or send a quick message.
@@ -1613,7 +1631,7 @@
 
             {moreMode === "play" ? (
               <div className="text-center">
-                <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-3 h-[60px] w-auto pointer-events-none" draggable="false" />
+                <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-3 h-[76px] w-auto pointer-events-none" draggable="false" />
                 <p className="mb-2 text-[22px] font-black text-[#30215A]">Play Mode</p>
                 <p className="mx-auto mb-4 max-w-[320px] text-[15px] leading-6 text-[#6B5C96]">
                   Lock menus and controls so Mevas can be played with safely.
@@ -1663,7 +1681,10 @@
           </ModalShell>
         ) : null}
 
-        <style>{`
+<style>{`
+          html, body, #root {
+            background: #EAF1FB;
+          }
           @keyframes mevaFloat {
             0% { transform: translateY(0px); }
             50% { transform: translateY(-6px); }
@@ -1688,7 +1709,7 @@
         <img
           src={MEVA_LOGO_URL}
           alt="Meva"
-          className="mx-auto mb-3 h-[60px] w-auto pointer-events-none"
+          className="mx-auto mb-3 h-[76px] w-auto pointer-events-none"
           draggable="false"
         />
         <p className="mb-4 text-[22px] font-black text-[#30215A]">{title}</p>
