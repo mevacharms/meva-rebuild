@@ -201,6 +201,8 @@ export default function MevaIdPage() {
   const [weeklyResetText, setWeeklyResetText] = useState(
     formatDuration(getWeeklyResetMs())
   );
+  const [tapBurst, setTapBurst] = useState([]);
+  const [tapBounce, setTapBounce] = useState(false);
 
   const isDebug =
     new URLSearchParams(window.location.search).get("debug") === "1";
@@ -249,12 +251,6 @@ export default function MevaIdPage() {
 
       try {
         const redirectResult = await getRedirectResult(auth);
-
-        pushDebug(setDebugInfo, "redirect_result_checked", {
-          hasUser: !!redirectResult?.user,
-          uid: redirectResult?.user?.uid || null,
-          email: redirectResult?.user?.email || null,
-        });
 
         if (redirectResult?.user) {
           const pending = readPendingAction();
@@ -406,7 +402,7 @@ export default function MevaIdPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const displayName = mevaData?.nickname || mevaData?.realName || "Unnamed Meva";
+  const displayName = mevaData?.realName || mevaData?.nickname || "Unnamed Meva";
   const imageUrl = mevaData?.imageUrl || KIBO_IMAGE_URL;
   const isMobileDevice = isMobileLike();
   const primaryButtonLabel = viewerState.isClaimed ? "Unclaim Meva" : "Claim Meva";
@@ -684,9 +680,30 @@ export default function MevaIdPage() {
     }
   };
 
+  const handleTap = async () => {
+    const id = `${Date.now()}-${Math.random()}`;
+    setTapBounce(true);
+    setTapBurst((prev) => [...prev, id].slice(-4));
+    setMevaData((prev) =>
+      prev
+        ? {
+            ...prev,
+            visitorTapCount: (prev.visitorTapCount || 0) + 1,
+          }
+        : prev
+    );
+
+    window.setTimeout(() => setTapBounce(false), 180);
+    window.setTimeout(() => {
+      setTapBurst((prev) => prev.filter((item) => item !== id));
+    }, 700);
+
+    await trackInteraction("tap");
+  };
+
   const renderMainShell = (content) => (
     <div className="relative mx-auto min-h-[calc(100vh-20px)] w-full max-w-[430px] overflow-hidden select-none [-webkit-user-select:none] [-webkit-touch-callout:none]">
-      <a href="/m" aria-label="Back to Meva" className="absolute left-0 top-[70px] z-20">
+      <a href="/m" aria-label="Back to Meva" className="absolute left-0 top-[54px] z-20">
         <img
           src={MEVA_LOGO_URL}
           alt="Meva logo"
@@ -699,7 +716,7 @@ export default function MevaIdPage() {
         type="button"
         aria-label="Open menu"
         onClick={() => setPanel("menu")}
-        className="absolute right-[18px] top-[50px] z-20 flex h-[72px] w-[72px] items-center justify-center rounded-full bg-white/90 text-[34px] font-black text-[#6B5C96] shadow-[0_16px_42px_rgba(95,72,150,0.12)]"
+        className="absolute right-[18px] top-[46px] z-20 flex h-[66px] w-[66px] items-center justify-center rounded-full bg-white/90 text-[31px] font-black text-[#6B5C96] shadow-[0_16px_42px_rgba(95,72,150,0.12)]"
       >
         ≡
       </button>
@@ -714,7 +731,7 @@ export default function MevaIdPage() {
       onClick={closePanels}
     >
       <div
-        className={`relative w-full ${
+        className={`relative max-h-[92vh] w-full overflow-y-auto ${
           large ? "max-w-[420px]" : "max-w-[380px]"
         } rounded-[32px] bg-white/95 p-5 text-center shadow-[0_24px_80px_rgba(48,33,90,0.24)]`}
         onClick={(e) => e.stopPropagation()}
@@ -761,37 +778,49 @@ export default function MevaIdPage() {
 
   return (
     <>
-      <div className="min-h-screen overflow-hidden bg-[#EAF1FB] px-4 pt-3 select-none [-webkit-user-select:none] [-webkit-touch-callout:none]">
+      <div className="min-h-screen overflow-hidden bg-[#EAF1FB] px-4 pt-2 select-none [-webkit-user-select:none] [-webkit-touch-callout:none]">
         {renderMainShell(
           <>
-            <div className="flex justify-center pt-[38px]">
-              <div className="flex flex-col items-center gap-2">
-                <div className="rounded-full bg-white/85 px-7 py-2 text-[15px] font-black text-[#7B6F9E] shadow-sm">
+            <div className="flex justify-center pt-[22px]">
+              <div className="flex flex-col items-center gap-1.5">
+                <div className="rounded-full bg-white/85 px-6 py-1.5 text-[14px] font-black text-[#7B6F9E] shadow-sm">
                   Visited{mevaData?.tapCount ?? 0}
                 </div>
-                <div className="rounded-full bg-white/85 px-7 py-2 text-[15px] font-black text-[#7B6F9E] shadow-sm">
+                <div className="rounded-full bg-white/85 px-6 py-1.5 text-[14px] font-black text-[#7B6F9E] shadow-sm">
                   Fed{mevaData?.visitorTapCount ?? 0}
                 </div>
               </div>
             </div>
 
-            <div className="mt-[250px] flex justify-center">
-              <div className="relative flex h-[220px] w-full items-start justify-center">
-                <div className="absolute left-1/2 top-0 -translate-x-1/2 rounded-[22px] bg-white px-6 py-3 text-[18px] font-black text-[#5E537F] shadow-sm">
+            <div className="mt-[220px] flex justify-center">
+              <div className="relative flex h-[206px] w-full items-start justify-center">
+                <div className="absolute left-1/2 top-0 -translate-x-1/2 rounded-[20px] bg-white px-5 py-2.5 text-[16px] font-black text-[#5E537F] shadow-sm">
                   {viewerState.isOwner ? "you found me" : "feed me"}
-                  <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-l-[11px] border-r-[11px] border-t-[13px] border-l-transparent border-r-transparent border-t-white" />
+                  <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-l-[10px] border-r-[10px] border-t-[12px] border-l-transparent border-r-transparent border-t-white" />
                 </div>
+
+                {tapBurst.map((item, index) => (
+                  <div
+                    key={item}
+                    className="pointer-events-none absolute left-[55%] top-[52px] z-20 rounded-full bg-white/90 px-3 py-1 text-[15px] font-black text-[#8D76F6] shadow-sm"
+                    style={{
+                      animation: "tapFloat 700ms ease-out forwards",
+                      transform: `translate(${index * 10}px, 0)`,
+                    }}
+                  >
+                    +1
+                  </div>
+                ))}
 
                 <img
                   src={imageUrl}
                   alt={displayName}
                   draggable="false"
                   onContextMenu={(e) => e.preventDefault()}
-                  onClick={async () => {
-                    await trackInteraction("tap");
-                    setActionMessage("Fed.");
-                  }}
-                  className="absolute top-[66px] z-10 h-[124px] w-auto cursor-pointer select-none object-contain [-webkit-user-drag:none]"
+                  onClick={handleTap}
+                  className={`absolute top-[58px] z-10 h-[122px] w-auto cursor-pointer select-none object-contain [-webkit-user-drag:none] ${
+                    tapBounce ? "scale-[1.06]" : "scale-100"
+                  } transition-transform duration-150`}
                   style={{
                     animation: "mevaFloat 3.6s ease-in-out infinite",
                     WebkitTouchCallout: "none",
@@ -802,28 +831,28 @@ export default function MevaIdPage() {
               </div>
             </div>
 
-            <div className="mt-[90px] flex justify-center">
-              <div className="rounded-full bg-white/90 px-6 py-3 text-[18px] font-black text-[#625683] shadow-sm">
+            <div className="mt-[58px] flex justify-center">
+              <div className="rounded-full bg-white/90 px-6 py-2.5 text-[17px] font-black text-[#625683] shadow-sm">
                 {displayName}
               </div>
             </div>
 
-            <div className="mx-auto mt-5 max-w-[320px] rounded-[24px] bg-white/85 px-4 py-3 text-center shadow-sm">
-              <p className="text-[14px] font-semibold leading-6 text-[#625F7A]">
-                Tap to feed · Hold for a quiet moment
+            <div className="mx-auto mt-3 max-w-[292px] rounded-[22px] bg-white/85 px-3.5 py-2.5 text-center shadow-sm">
+              <p className="text-[13px] font-semibold leading-5 text-[#625F7A]">
+                Tap to feed · Hold for quiet
                 <br />
                 Drag the one that’s awake
               </p>
             </div>
 
             {authMessage ? (
-              <p className="mt-3 text-center text-[13px] font-medium text-[#B45E7F]">
+              <p className="mt-2 text-center text-[13px] font-medium text-[#B45E7F]">
                 {authMessage}
               </p>
             ) : null}
 
             {actionMessage ? (
-              <p className="mt-2 text-center text-[13px] font-medium text-[#6B5C96]">
+              <p className="mt-1 text-center text-[13px] font-medium text-[#6B5C96]">
                 {actionMessage}
               </p>
             ) : null}
@@ -1137,7 +1166,7 @@ export default function MevaIdPage() {
 
       {panel === "more" ? (
         <ModalShell large>
-          <p className="mb-6 text-[22px] font-black text-[#30215A]">More to explore</p>
+          <p className="mb-5 text-[22px] font-black text-[#30215A]">More to explore</p>
 
           {moreMode === "main" ? (
             <>
@@ -1227,32 +1256,36 @@ export default function MevaIdPage() {
 
           {moreMode === "support" ? (
             <div className="text-center">
-              <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-5 h-[62px] w-auto pointer-events-none" draggable="false" />
-              <p className="mb-2 text-[22px] font-black text-[#30215A]">Support / Contact Us</p>
-              <p className="mx-auto mb-5 max-w-[320px] text-[16px] leading-7 text-[#6B5C96]">
-                Report a bug, ask a question, or send a quick message if you need help.
+              <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-2 h-[78px] w-auto pointer-events-none" draggable="false" />
+              <p className="mb-1 text-[22px] font-black text-[#30215A]">Support / Contact Us</p>
+              <p className="mx-auto mb-4 max-w-[320px] text-[15px] leading-6 text-[#6B5C96]">
+                Report a bug, ask a question, or send a quick message.
               </p>
-              <input className="mb-3 h-[50px] w-full rounded-[18px] border border-[#E6DEF8] px-4 text-[15px] outline-none" placeholder="Short summary" />
-              <textarea className="mb-3 h-[120px] w-full resize-none rounded-[18px] border border-[#E6DEF8] p-4 text-[15px] outline-none" placeholder="What were you doing, and what went wrong?" />
-              <input className="mb-4 h-[50px] w-full rounded-[18px] border border-[#E6DEF8] px-4 text-[15px] outline-none" placeholder="Contact email (optional)" />
+              <input className="mb-3 h-[48px] w-full rounded-[18px] border border-[#E6DEF8] px-4 text-[15px] outline-none" placeholder="Short summary" />
+              <textarea className="mb-3 h-[100px] w-full resize-none rounded-[18px] border border-[#E6DEF8] p-4 text-[15px] outline-none" placeholder="What were you doing, and what went wrong?" />
+              <label className="mb-3 flex h-[48px] w-full cursor-pointer items-center justify-center rounded-[18px] border border-dashed border-[#CDBDFF] bg-[#F8F6FD] text-[14px] font-black text-[#6B5C96]">
+                Add image / screenshot optional
+                <input type="file" accept="image/*" className="hidden" />
+              </label>
+              <input className="mb-4 h-[48px] w-full rounded-[18px] border border-[#E6DEF8] px-4 text-[15px] outline-none" placeholder="Contact email optional" />
               <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => setMoreMode("main")} className="h-[50px] rounded-[18px] bg-white text-[15px] font-black text-[#6B5C96] shadow-sm">Cancel</button>
-                <button onClick={() => setMoreMode("main")} className="h-[50px] rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white">Send</button>
+                <button onClick={() => setMoreMode("main")} className="h-[48px] rounded-[18px] bg-white text-[15px] font-black text-[#6B5C96] shadow-sm">Cancel</button>
+                <button onClick={() => setMoreMode("main")} className="h-[48px] rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white">Send</button>
               </div>
             </div>
           ) : null}
 
           {moreMode === "play" ? (
             <div className="text-center">
-              <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-8 h-[62px] w-auto pointer-events-none" draggable="false" />
-              <p className="mb-3 text-[22px] font-black text-[#30215A]">Play Mode</p>
-              <p className="mx-auto mb-5 max-w-[320px] text-[16px] leading-7 text-[#6B5C96]">
+              <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-4 h-[78px] w-auto pointer-events-none" draggable="false" />
+              <p className="mb-2 text-[22px] font-black text-[#30215A]">Play Mode</p>
+              <p className="mx-auto mb-4 max-w-[320px] text-[15px] leading-6 text-[#6B5C96]">
                 Lock menus and controls so Mevas can be played with safely.
               </p>
-              <input className="mb-5 h-[54px] w-full rounded-[18px] border border-[#CDBDFF] px-4 text-[16px] outline-none" placeholder="Optional 4-digit PIN" maxLength={4} inputMode="numeric" />
+              <input className="mb-4 h-[52px] w-full rounded-[18px] border border-[#CDBDFF] px-4 text-[16px] outline-none" placeholder="Optional 4-digit PIN" maxLength={4} inputMode="numeric" />
               <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => setMoreMode("main")} className="h-[50px] rounded-[18px] bg-white text-[15px] font-black text-[#6B5C96] shadow-sm">Cancel</button>
-                <button onClick={() => setMoreMode("main")} className="h-[50px] rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white">Start</button>
+                <button onClick={() => setMoreMode("main")} className="h-[48px] rounded-[18px] bg-white text-[15px] font-black text-[#6B5C96] shadow-sm">Cancel</button>
+                <button onClick={() => setMoreMode("main")} className="h-[48px] rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white">Start</button>
               </div>
             </div>
           ) : null}
@@ -1278,6 +1311,12 @@ export default function MevaIdPage() {
           50% { transform: translateY(-6px); }
           100% { transform: translateY(0px); }
         }
+
+        @keyframes tapFloat {
+          0% { opacity: 0; transform: translateY(0) scale(0.92); }
+          18% { opacity: 1; }
+          100% { opacity: 0; transform: translateY(-42px) scale(1.08); }
+        }
       `}</style>
     </>
   );
@@ -1289,13 +1328,13 @@ function InnerInfo({ title, lines, onClose }) {
       <img
         src={MEVA_LOGO_URL}
         alt="Meva"
-        className="mx-auto mb-8 h-[78px] w-auto pointer-events-none"
+        className="mx-auto mb-4 h-[98px] w-auto pointer-events-none"
         draggable="false"
       />
-      <p className="mb-5 text-[22px] font-black text-[#30215A]">{title}</p>
-      <div className="space-y-4">
+      <p className="mb-4 text-[22px] font-black text-[#30215A]">{title}</p>
+      <div className="space-y-3">
         {lines.map((line) => (
-          <p key={line} className="text-[16px] leading-7 text-[#625F7A]">
+          <p key={line} className="text-[15px] leading-6 text-[#625F7A]">
             {line}
           </p>
         ))}
@@ -1303,7 +1342,7 @@ function InnerInfo({ title, lines, onClose }) {
       <button
         type="button"
         onClick={onClose}
-        className="mt-8 h-[52px] rounded-[20px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] px-10 text-[16px] font-black text-white"
+        className="mt-6 h-[50px] rounded-[20px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] px-10 text-[16px] font-black text-white"
       >
         Close
       </button>
