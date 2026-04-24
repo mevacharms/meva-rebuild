@@ -731,22 +731,29 @@ export default function MevaIdPage() {
   };
 
   const renderCardShell = (content) => (
-    <div className="mx-auto flex min-h-[calc(100vh-120px)] w-full max-w-[470px] items-center justify-center sm:max-w-[500px]">
-      <div className="relative w-full rounded-[34px] border border-white/80 bg-[#F7FAFF] px-5 pb-8 pt-8 shadow-[0_20px_70px_rgba(95,72,150,0.08)] sm:px-6 sm:pb-8 sm:pt-8">
-        <a
-          href="/m"
-          aria-label="Back to Meva"
-          className="absolute -left-[12px] -top-[12px] sm:-left-7 sm:-top-7"
-        >
-          <img
-            src={MEVA_LOGO_URL}
-            alt="Meva logo"
-            className="h-[110px] w-auto object-contain sm:h-[150px]"
-            draggable="false"
-          />
-        </a>
-        {content}
-      </div>
+    <div className="relative mx-auto min-h-[calc(100vh-90px)] w-full max-w-[430px] overflow-hidden">
+      <a
+        href="/m"
+        aria-label="Back to Meva"
+        className="absolute left-3 top-6 z-20"
+      >
+        <img
+          src={MEVA_LOGO_URL}
+          alt="Meva logo"
+          className="h-[92px] w-auto object-contain"
+          draggable="false"
+        />
+      </a>
+
+      <button
+        type="button"
+        aria-label="Open menu"
+        className="absolute right-2 top-4 z-20 flex h-[74px] w-[74px] items-center justify-center rounded-full bg-white/90 text-[34px] font-bold text-[#6B5C96] shadow-[0_12px_30px_rgba(95,72,150,0.10)]"
+      >
+        ≡
+      </button>
+
+      {content}
     </div>
   );
 
@@ -763,7 +770,7 @@ export default function MevaIdPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#EAF1FB] px-4 py-5 sm:px-5 sm:py-7">
+      <div className="min-h-screen bg-[#F4F1FB] px-4 pt-5">
         {renderCardShell(
           <>
             <div className="mb-4 flex justify-center">
@@ -844,19 +851,19 @@ export default function MevaIdPage() {
       <div className="min-h-screen bg-[#EAF1FB] px-4 py-5 sm:px-5 sm:py-7">
         {renderCardShell(
           <>
-            <div className="flex items-start justify-end gap-3">
-              <div className="flex gap-2">
-                <div className="rounded-full bg-white/80 px-4 py-2 text-[13px] font-bold text-[#7B6F9E] shadow-sm">
-                  Visited {mevaData?.tapCount ?? 0}
+                        <div className="flex justify-center pt-5">
+              <div className="flex flex-col items-center gap-3">
+                <div className="rounded-full bg-white/85 px-8 py-3 text-[18px] font-bold text-[#7B6F9E] shadow-sm">
+                  Visited{mevaData?.tapCount ?? 0}
                 </div>
-                <div className="rounded-full bg-white/80 px-4 py-2 text-[13px] font-bold text-[#7B6F9E] shadow-sm">
-                  Fed {mevaData?.visitorTapCount ?? 0}
+                <div className="rounded-full bg-white/85 px-8 py-3 text-[18px] font-bold text-[#7B6F9E] shadow-sm">
+                  Fed{mevaData?.visitorTapCount ?? 0}
                 </div>
               </div>
             </div>
 
-            <div className="mt-8 flex justify-center">
-              <div className="relative flex h-[220px] w-full items-start justify-center">
+            <div className="mt-[190px] flex justify-center">
+            <div className="relative flex h-[240px] w-full items-start justify-center">
                 <div className="absolute left-1/2 top-0 -translate-x-1/2 rounded-[22px] bg-white px-5 py-3 text-[15px] font-bold text-[#5E537F] shadow-sm">
                   {viewerState.isOwner ? "you found me" : "feed me"}
                   <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-l-[10px] border-r-[10px] border-t-[12px] border-l-transparent border-r-transparent border-t-white" />
