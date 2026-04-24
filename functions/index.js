@@ -427,67 +427,87 @@ exports.logMevaInteraction = onCall(async (request) => {
           sessionId: safeMetadata.sessionId,
         }));
 
-      await db.runTransaction(async (tx) => {
-        const guardSnap = await tx.get(tapGuardRef);
-        const nowMs = Date.now();
-        const lastTapMs = guardSnap.exists
-          ? guardSnap.data()?.lastTapMs || 0
-          : 0;
-
-        const msSinceLastTap = nowMs - lastTapMs;
-
-        if (msSinceLastTap < 350) {
-          countBlockReason = "too_fast";
+        await db.runTransaction(async (tx) => {
+          const guardSnap = await tx.get(tapGuardRef);
+          const nowMs = Date.now();
+          const lastTapMs = guardSnap.exists
+            ? guardSnap.data()?.lastTapMs || 0
+            : 0;
+  
+          const msSinceLastTap = lastTapMs ? nowMs - lastTapMs : 0;
+  
+          const previousIntervals = guardSnap.exists
+            ? guardSnap.data()?.intervals || []
+            : [];
+  
+          const newIntervals = lastTapMs
+            ? [...previousIntervals, msSinceLastTap].slice(-6)
+            : [];
+  
+          const isTooConsistent =
+            newIntervals.length >= 5 &&
+            newIntervals.every(
+              (val, i, arr) => i === 0 || Math.abs(val - arr[i - 1]) < 10
+            );
+  
+          const isExtremeSpam = lastTapMs && msSinceLastTap < 50;
+  
+          if (isTooConsistent || isExtremeSpam) {
+            countBlockReason = isTooConsistent ? "bot_pattern" : "extreme_spam";
+  
+            tx.set(
+              tapGuardRef,
+              {
+                mevaId,
+                actorUid: request.auth?.uid || null,
+                sessionId: safeMetadata.sessionId,
+                intervals: newIntervals,
+                lastRejectedTapMs: nowMs,
+                rejectedTapCount: FieldValue.increment(1),
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+  
+            return;
+          }
+  
+          counted = true;
+  
           tx.set(
             tapGuardRef,
             {
               mevaId,
               actorUid: request.auth?.uid || null,
               sessionId: safeMetadata.sessionId,
-              lastRejectedTapMs: nowMs,
-              rejectedTapCount: FieldValue.increment(1),
+              lastTapMs: nowMs,
+              intervals: newIntervals,
+              acceptedTapCount: FieldValue.increment(1),
               updatedAt: FieldValue.serverTimestamp(),
             },
             { merge: true }
           );
-          return;
-        }
-
-        counted = true;
-
-        tx.set(
-          tapGuardRef,
-          {
-            mevaId,
-            actorUid: request.auth?.uid || null,
-            sessionId: safeMetadata.sessionId,
-            lastTapMs: nowMs,
-            acceptedTapCount: FieldValue.increment(1),
-            updatedAt: FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
-
-        if (isOwner) {
-          tx.set(
-            mevaRef,
-            {
-              ownerTapCount: FieldValue.increment(1),
-              updatedAt: FieldValue.serverTimestamp(),
-            },
-            { merge: true }
-          );
-        } else {
-          tx.set(
-            mevaRef,
-            {
-              visitorTapCount: FieldValue.increment(1),
-              updatedAt: FieldValue.serverTimestamp(),
-            },
-            { merge: true }
-          );
-        }
-      });
+  
+          if (isOwner) {
+            tx.set(
+              mevaRef,
+              {
+                ownerTapCount: FieldValue.increment(1),
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          } else {
+            tx.set(
+              mevaRef,
+              {
+                visitorTapCount: FieldValue.increment(1),
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
+        });
     }
   }
 
