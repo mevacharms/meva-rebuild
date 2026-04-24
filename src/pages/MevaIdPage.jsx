@@ -682,8 +682,9 @@
             await syncUserProfile();
             await claimMeva({ mevaId });
             await refreshCurrentMeva();
-            setAuthMessage("");
-            return;
+          setAuthMessage("");
+          showNotice("Saved with Google", `${displayName} is now protected and saved to your account.`);
+          return;
           }
           return;
         }
@@ -692,8 +693,8 @@
         await auth.currentUser?.getIdToken(true);
         await claimMeva({ mevaId });
         await refreshCurrentMeva();
-        setAuthMessage("");
-        closePanels();
+      setAuthMessage("");
+      showNotice("Saved with Google", `${displayName} is now protected and saved to your account.`);
       } catch (err) {
         console.error("Claim failed:", err);
         showNotice("Claim failed", err?.message || "We couldn’t claim this Meva right now.");
@@ -866,7 +867,7 @@
         setMevaMood("soft");
       setGlowActive(true);
         trackInteraction("hold_start");
-      }, 420);
+      }, 300);
 
       setDraggingMeva(true);
     };
@@ -904,12 +905,12 @@
         <a
           href="/m"
           aria-label="Back to Meva"
-          className="absolute left-3 top-4 z-20 flex h-[54px] w-[54px] items-center justify-center"
+          className="absolute left-3 top-4 z-20 flex h-[64px] w-[64px] items-center justify-center"
         >
           <img
             src={MEVA_LOGO_URL}
             alt="Meva logo"
-            className="h-[60px] w-auto object-contain select-none pointer-events-none"
+            className="h-[70px] w-auto object-contain select-none pointer-events-none"
             draggable="false"
           />
         </a>
@@ -1018,7 +1019,7 @@
                       glowActive ? "opacity-100" : "opacity-0"
                     }`}
                   >
-                    <div className="h-full w-full rounded-full bg-gradient-to-r from-[#A894F0]/40 via-[#8D76F6]/30 to-[#7E66F4]/40 blur-[38px]" />
+                    <div className="h-full w-full rounded-full bg-gradient-to-r from-[#A894F0]/12 via-[#8D76F6]/10 to-[#7E66F4]/12 blur-[34px]" />
                   </div>
 
                   <img
