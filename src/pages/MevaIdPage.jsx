@@ -164,15 +164,35 @@ export default function MevaIdPage() {
           setUser(redirectResult.user);
           await syncUserProfile();
 
+          pushDebug(setDebugInfo, "redirect_pending_checked", {
+            pending,
+            currentMevaId: mevaId,
+            redirectUid: redirectResult.user?.uid || null,
+            redirectEmail: redirectResult.user?.email || null,
+          });
+
           if (pending?.mevaId === mevaId) {
-            if (pending.action === "claim") await claimMeva({ mevaId });
+            if (pending.action === "claim") {
+              pushDebug(setDebugInfo, "redirect_claim_start", { mevaId });
+              await claimMeva({ mevaId });
+              pushDebug(setDebugInfo, "redirect_claim_done", { mevaId });
+            }
+
             if (pending.action === "unclaim") {
+              pushDebug(setDebugInfo, "redirect_unclaim_start", { mevaId });
               await unclaimMeva({ mevaId });
               await signOut(auth);
+              pushDebug(setDebugInfo, "redirect_unclaim_done", { mevaId });
             }
 
             clearPendingAction();
             await refreshCurrentMeva();
+            pushDebug(setDebugInfo, "redirect_refresh_done", { mevaId });
+          } else {
+            pushDebug(setDebugInfo, "redirect_pending_mismatch", {
+              pending,
+              currentMevaId: mevaId,
+            });
           }
         }
       } catch (err) {
