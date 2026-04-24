@@ -68,6 +68,15 @@ function pushDebug(setter, label, data = {}) {
   setter((prev) => [entry, ...prev].slice(0, 20));
 }
 
+function getSessionId() {
+  let id = sessionStorage.getItem("mevaSession");
+  if (!id) {
+    id = crypto.randomUUID();
+    sessionStorage.setItem("mevaSession", id);
+  }
+  return id;
+}
+
 function isMobileLike() {
   if (typeof window === "undefined") return false;
   return (
@@ -370,16 +379,29 @@ export default function MevaIdPage() {
 
   const trackInteraction = async (eventType, extraMetadata = {}) => {
     try {
+      if (!mevaId) return;
+  
       const context = await getClientContext();
-
+  
       await logMevaInteraction({
         mevaId,
         eventType,
-        location: context.location,
+  
+        location: {
+          ...context.location,
+          latitude: null,
+          longitude: null,
+          accuracy: null,
+        },
+  
         device: context.device,
+  
         metadata: {
           ...context.metadata,
           ...extraMetadata,
+          sessionId: getSessionId(),
+          path: window.location.pathname,
+          isMobile: isMobileLike(),
         },
       });
     } catch (err) {
