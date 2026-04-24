@@ -226,6 +226,9 @@ export default function MevaIdPage() {
   const [renameMessage, setRenameMessage] = useState("");
   const [renamingMeva, setRenamingMeva] = useState(false);
   const [unclaimConfirmText, setUnclaimConfirmText] = useState("");
+  const [notice, setNotice] = useState(null);
+  const holdTimerRef = useRef(null);
+  const holdActiveRef = useRef(false);
   const dragRef = useRef({
     active: false,
     moved: false,
@@ -601,6 +604,11 @@ setViewerState({
 });
   };
 
+  const showNotice = (title, message) => {
+    setNotice({ title, message });
+    setPanel("notice");
+  };
+
   const beginGoogleSignIn = async (pendingAction) => {
     try {
       if (!isMobileLike()) {
@@ -615,11 +623,11 @@ setViewerState({
       console.error("Popup sign-in failed:", popupErr);
 
       if (popupErr?.code === "auth/popup-blocked") {
-        setAuthMessage("Google sign-in popup was blocked.");
+        showNotice("Google sign-in blocked", "Please allow popups and try again.");
       } else if (popupErr?.code === "auth/popup-closed-by-user") {
-        setAuthMessage("Google sign-in was closed before it finished.");
+        showNotice("Google sign-in closed", "Sign-in was closed before it finished.");
       } else {
-        setAuthMessage("Google sign-in failed. Please try again.");
+        showNotice("Google sign-in failed", "Please try again.");
       }
 
       return { mode: "failed", user: null };
@@ -633,8 +641,7 @@ setViewerState({
       isDeviceOwner: true,
     }));
 
-    setActionMessage(`${displayName} is staying with you on this device.`);
-    closePanels();
+    showNotice("Saved on this device", `${displayName} will stay here on this phone/browser.`);
   };
 
   const handleDeviceUnclaim = () => {
@@ -645,8 +652,7 @@ setViewerState({
       isDeviceOwner: false,
     }));
 
-    setActionMessage(`${displayName} was removed from this device.`);
-    closePanels();
+    showNotice("Removed from this device", `${displayName} is no longer saved on this phone/browser.`);
   };
 
   const handleUpgradeDeviceClaim = async () => {
@@ -655,7 +661,7 @@ setViewerState({
     if (auth.currentUser) {
       removeDeviceClaim(mevaId);
       await refreshCurrentMeva();
-      setActionMessage(`${displayName} is now saved to your Google account.`);
+      showNotice("Saved with Google", `${displayName} is now protected and saved to your account.`);
     }
   };
   const handleClaim = async () => {
@@ -689,7 +695,7 @@ setViewerState({
       closePanels();
     } catch (err) {
       console.error("Claim failed:", err);
-      setActionMessage(err?.message || "We couldn’t claim this Meva right now.");
+      showNotice("Claim failed", err?.message || "We couldn’t claim this Meva right now.");
     } finally {
       setActionLoading(false);
     }
@@ -728,7 +734,7 @@ setViewerState({
       closePanels();
     } catch (err) {
       console.error("Unclaim failed:", err);
-      setActionMessage(err?.message || "We couldn’t unclaim this Meva right now.");
+      showNotice("Unclaim failed", err?.message || "We couldn’t unclaim this Meva right now.");
     } finally {
       setActionLoading(false);
     }
@@ -801,17 +807,33 @@ setViewerState({
       dragRef.current.moved = true;
     }
 
-    setMevaPos({
-      x: Math.max(-120, Math.min(120, dragRef.current.baseX + dx)),
-      y: Math.max(-155, Math.min(135, dragRef.current.baseY + dy)),
+    window.requestAnimationFrame(() => {
+      setMevaPos({
+        x: Math.max(-120, Math.min(120, dragRef.current.baseX + dx)),
+        y: Math.max(-155, Math.min(135, dragRef.current.baseY + dy)),
+      });
     });
   };
 
   const finishMevaDrag = async () => {
     const shouldTap = dragRef.current.active && !dragRef.current.moved;
 
+    if (holdTimerRef.current) {
+      window.clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+
+    const wasHolding = holdActiveRef.current;
+
     dragRef.current.active = false;
+    holdActiveRef.current = false;
     setDraggingMeva(false);
+
+    if (wasHolding) {
+      setMevaMood("calm");
+      await trackInteraction("hold_end");
+      return;
+    }
 
     if (shouldTap) {
       await handleTap();
@@ -831,6 +853,13 @@ setViewerState({
       baseX: mevaPos.x,
       baseY: mevaPos.y,
     };
+
+    holdTimerRef.current = window.setTimeout(() => {
+      if (!dragRef.current.active || dragRef.current.moved) return;
+      holdActiveRef.current = true;
+      setMevaMood("soft");
+      trackInteraction("hold_start");
+    }, 420);
 
     setDraggingMeva(true);
   };
@@ -873,7 +902,7 @@ setViewerState({
         <img
           src={MEVA_LOGO_URL}
           alt="Meva logo"
-          className="h-[54px] w-auto object-contain select-none pointer-events-none"
+          className="h-[60px] w-auto object-contain select-none pointer-events-none"
           draggable="false"
         />
       </a>
@@ -894,7 +923,9 @@ setViewerState({
   const ModalShell = ({ children, large = false }) => (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-[#30215A]/38 px-4 backdrop-blur-sm"
-      onClick={closePanels}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) closePanels();
+      }}
     >
       <div
         className={`relative max-h-[92vh] w-full overflow-y-auto ${
@@ -985,15 +1016,16 @@ setViewerState({
                   onPointerUp={handleMevaPointerUp}
                   onPointerCancel={() => {
                     dragRef.current.active = false;
-                    setDraggingMeva(false);
+    holdActiveRef.current = false;
+    setDraggingMeva(false);
                   }}
                   className={`absolute top-[54px] z-10 h-[122px] w-auto cursor-grab select-none object-contain [-webkit-user-drag:none] ${
                     draggingMeva ? "cursor-grabbing" : ""
-                  } transition-transform duration-75`}
+                  } transition-transform duration-100 ease-out`}
                   style={{
                     animation: "none",
                     transform: `translate(${mevaPos.x}px, ${mevaPos.y}px) scale(${
-                      tapBounce ? 1.08 : 1
+                      mevaMood === "soft" ? 1.04 : tapBounce ? 1.08 : 1
                     }) rotate(${tapBounce ? 2 : 0}deg)`,
                     WebkitTouchCallout: "none",
                     WebkitUserSelect: "none",
@@ -1015,18 +1047,6 @@ setViewerState({
               Tap, hold, or drag to interact
               </p>
             </div>
-
-            {authMessage ? (
-              <p className="mt-2 text-center text-[13px] font-medium text-[#B45E7F]">
-                {authMessage}
-              </p>
-            ) : null}
-
-            {actionMessage ? (
-              <p className="mt-1 text-center text-[13px] font-medium text-[#6B5C96]">
-                {actionMessage}
-              </p>
-            ) : null}
 
             {isDebug ? (
               <div className="mt-4 max-h-[160px] overflow-auto rounded-[18px] bg-[#EEF4FD] p-4 text-left text-[12px] leading-5 text-[#4D406D]">
@@ -1053,6 +1073,35 @@ setViewerState({
           </>
         )}
       </div>
+
+      {panel === "notice" && notice ? (
+        <ModalShell>
+          <div className="text-center">
+            <img
+              src={MEVA_LOGO_URL}
+              alt="Meva"
+              className="mx-auto mb-3 h-[60px] w-auto pointer-events-none"
+              draggable="false"
+            />
+            <p className="mb-2 text-[22px] font-black text-[#30215A]">
+              {notice.title}
+            </p>
+            <p className="mx-auto mb-5 max-w-[310px] text-[14px] font-bold leading-6 text-[#6B5C96]">
+              {notice.message}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setNotice(null);
+                closePanels();
+              }}
+              className="h-[48px] w-full rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white"
+            >
+              Okay
+            </button>
+          </div>
+        </ModalShell>
+      ) : null}
 
       {panel === "menu" ? (
         <ModalShell>
@@ -1393,8 +1442,7 @@ setViewerState({
                   disabled={actionLoading}
                   onClick={() => {
                     if (!isMobileDevice) {
-                      setAuthMessage("Please open this Meva on your phone to claim or unclaim.");
-                      closePanels();
+                      showNotice("Open on phone", "Please open this Meva on your phone to claim or unclaim.");
                       return;
                     }
 
@@ -1462,7 +1510,7 @@ setViewerState({
               <img
                 src={MEVA_LOGO_URL}
                 alt="Meva"
-                className="mx-auto mb-3 h-[54px] w-auto pointer-events-none"
+                className="mx-auto mb-3 h-[60px] w-auto pointer-events-none"
                 draggable="false"
               />
               <p className="mb-2 text-[22px] font-black text-[#30215A]">
@@ -1528,7 +1576,7 @@ setViewerState({
 
           {moreMode === "support" ? (
             <div className="text-center">
-              <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-3 h-[54px] w-auto pointer-events-none" draggable="false" />
+              <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-3 h-[60px] w-auto pointer-events-none" draggable="false" />
               <p className="mb-1 text-[22px] font-black text-[#30215A]">Support / Contact Us</p>
               <p className="mx-auto mb-4 max-w-[320px] text-[15px] leading-6 text-[#6B5C96]">
                 Report a bug, ask a question, or send a quick message.
@@ -1549,7 +1597,7 @@ setViewerState({
 
           {moreMode === "play" ? (
             <div className="text-center">
-              <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-3 h-[66px] w-auto pointer-events-none" draggable="false" />
+              <img src={MEVA_LOGO_URL} alt="Meva" className="mx-auto mb-3 h-[60px] w-auto pointer-events-none" draggable="false" />
               <p className="mb-2 text-[22px] font-black text-[#30215A]">Play Mode</p>
               <p className="mx-auto mb-4 max-w-[320px] text-[15px] leading-6 text-[#6B5C96]">
                 Lock menus and controls so Mevas can be played with safely.
@@ -1624,7 +1672,7 @@ function InnerInfo({ title, lines, onClose }) {
       <img
         src={MEVA_LOGO_URL}
         alt="Meva"
-        className="mx-auto mb-3 h-[54px] w-auto pointer-events-none"
+        className="mx-auto mb-3 h-[60px] w-auto pointer-events-none"
         draggable="false"
       />
       <p className="mb-4 text-[22px] font-black text-[#30215A]">{title}</p>
