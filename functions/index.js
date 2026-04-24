@@ -718,6 +718,31 @@ exports.setMevaLeaderboardName = onCall(async (request) => {
   };
 });
 
+exports.getMevaLeaderboardProfile = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must sign in first.");
+  }
+
+  const userRef = db.collection("users").doc(request.auth.uid);
+  const userSnap = await userRef.get();
+  const userData = userSnap.exists ? userSnap.data() : {};
+
+  const nowMs = Date.now();
+  const lastChangedMs = userData.leaderboardNameUpdatedAtMs || 0;
+  const fourteenDaysMs = 14 * 24 * 60 * 60 * 1000;
+  const hasFreeChange = userData.freeLeaderboardNameChangeAvailable !== false;
+  const nextChangeAtMs = hasFreeChange ? 0 : lastChangedMs + fourteenDaysMs;
+  const canChangeName = hasFreeChange || nowMs >= nextChangeAtMs;
+
+  return {
+    leaderboardName: userData.leaderboardName || null,
+    email: request.auth.token.email || null,
+    canChangeName,
+    hasFreeChange,
+    nextChangeAtMs,
+  };
+});
+
 exports.getMevaAnalyticsSummary = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must sign in first.");
