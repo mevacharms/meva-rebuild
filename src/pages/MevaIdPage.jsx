@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   browserLocalPersistence,
-  getRedirectResult,
   onAuthStateChanged,
   setPersistence,
   signInWithPopup,
@@ -154,70 +153,7 @@ export default function MevaIdPage() {
         });
       }
 
-      try {
-        const redirectResult = await getRedirectResult(auth);
-
-        pushDebug(setDebugInfo, "redirect_result_checked", {
-          hasUser: !!redirectResult?.user,
-          uid: redirectResult?.user?.uid || null,
-          email: redirectResult?.user?.email || null,
-        });
-
-        if (redirectResult?.user && mounted) {
-          setUser(redirectResult.user);
-          setAuthMessage("");
-
-          try {
-            await syncUserProfile();
-
-            const pending = readPendingAction();
-
-            pushDebug(setDebugInfo, "redirect_pending_action", {
-              pending,
-              currentMevaId: mevaId,
-            });
-
-            if (pending?.mevaId === mevaId) {
-              if (pending.action === "claim") {
-                pushDebug(setDebugInfo, "redirect_claim_start", {
-                  mevaId,
-                  uid: redirectResult.user.uid,
-                  email: redirectResult.user.email,
-                });
-                await claimMeva({ mevaId });
-                pushDebug(setDebugInfo, "redirect_claim_done", { mevaId });
-              }
-
-              if (pending.action === "unclaim") {
-                pushDebug(setDebugInfo, "redirect_unclaim_start", {
-                  mevaId,
-                  uid: redirectResult.user.uid,
-                  email: redirectResult.user.email,
-                });
-                await unclaimMeva({ mevaId });
-                await signOut(auth);
-                pushDebug(setDebugInfo, "redirect_unclaim_done", { mevaId });
-              }
-
-              clearPendingAction();
-              await refreshCurrentMeva();
-              pushDebug(setDebugInfo, "redirect_refresh_done", { mevaId });
-            }
-          } catch (resumeErr) {
-            console.error("Redirect resume failed:", resumeErr);
-            pushDebug(setDebugInfo, "redirect_resume_failed", {
-              message: resumeErr?.message || null,
-              code: resumeErr?.code || null,
-            });
-          }
-        }
-      } catch (err) {
-        console.error("Redirect sign-in failed:", err);
-        pushDebug(setDebugInfo, "redirect_failed", {
-          message: err?.message || null,
-          code: err?.code || null,
-        });
-      }
+      pushDebug(setDebugInfo, "redirect_disabled", {});
     }
 
     bootAuth();
