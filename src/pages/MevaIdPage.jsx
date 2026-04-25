@@ -462,13 +462,34 @@
       };
     }, [draggingMeva]);
 
+    const safeRealName =
+      mevaData?.realName && String(mevaData.realName).toLowerCase() !== "edaline"
+        ? mevaData.realName
+        : "Kibo";
+
     const displayName =
       mevaData?.nickname && String(mevaData.nickname).toLowerCase() !== "edaline"
         ? mevaData.nickname
-        : mevaData?.realName || "Kibo";
+        : safeRealName;
     const imageUrl = mevaData?.imageUrl || KIBO_IMAGE_URL;
     const isMobileDevice = isMobileLike();
     const primaryButtonLabel = viewerState.isClaimed ? "Unclaim Meva" : "Claim Meva";
+
+    const ownershipTitle = viewerState.isOwner
+      ? "Saved with Google"
+      : viewerState.isDeviceOwner
+      ? "Saved on this device"
+      : viewerState.isClaimed
+      ? "Already claimed"
+      : "Not claimed yet";
+
+    const ownershipText = viewerState.isOwner
+      ? "This Meva is protected and follows your Google account."
+      : viewerState.isDeviceOwner
+      ? "This Meva is only saved on this phone/browser."
+      : viewerState.isClaimed
+      ? "This Meva belongs to another Google account."
+      : "Keep it on this device, or save it with Google.";
 
     const getClientContext = async () => ({
       location: {
@@ -1065,15 +1086,15 @@
                 </div>
               </div>
 
-              <div className="mt-[clamp(130px,17dvh,185px)] flex justify-center">
+              <div className="absolute bottom-[clamp(92px,10dvh,120px)] left-0 right-0 flex justify-center">
                 <div className="rounded-full bg-white/95 px-5 py-2 text-[15px] font-black text-[#5A4D82] shadow-sm">
                   {displayName}
                 </div>
               </div>
 
-              <div className="mx-auto mt-2 max-w-[238px] rounded-[20px] bg-white/80 px-4 py-2 text-center shadow-sm backdrop-blur-sm">
+              <div className="absolute bottom-[clamp(45px,5dvh,70px)] left-1/2 w-[min(238px,78vw)] -translate-x-1/2 rounded-[20px] bg-white/80 px-4 py-2 text-center shadow-sm backdrop-blur-sm">
                 <p className="text-[12px] font-bold leading-5 text-[#69617F]">
-                Tap, hold, or drag to interact
+                  Tap, hold, or drag to interact
                 </p>
               </div>
 
@@ -1345,53 +1366,56 @@
             </div>
 
             {collectionTab === "claimed" ? (
-              <>
-                <div className="mb-4 rounded-full bg-white px-4 py-2 text-left text-[14px] font-bold text-[#7D729B] shadow-sm">
-                  On screen: 1 / 4
-                </div>
-                <div className="rounded-[24px] border border-[#CDBDFF] bg-[#F8F6FD] p-4 text-left">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[18px] font-black text-[#30215A]">Kibo</p>
-                    <p className="rounded-full bg-[#E7DFFF] px-3 py-1 text-[13px] font-black text-[#6B5C96]">
-                      ★ Owned
+              <div className="rounded-[24px] border border-[#E6DEF8] bg-[#F8F6FD] p-4 text-left">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[18px] font-black text-[#30215A]">
+                      {displayName}
+                    </p>
+                    <p className="mt-1 text-[14px] font-bold text-[#7D729B]">
+                      {ownershipText}
                     </p>
                   </div>
-                  <p className="mt-2 text-[14px] font-semibold text-[#7D729B]">Active</p>
+                  <p className="shrink-0 rounded-full bg-white px-3 py-1 text-[12px] font-black text-[#6B5C96] shadow-sm">
+                    {viewerState.isOwner
+                      ? "Google"
+                      : viewerState.isDeviceOwner
+                      ? "Device"
+                      : viewerState.isClaimed
+                      ? "Claimed"
+                      : "Open"}
+                  </p>
                 </div>
-              </>
+              </div>
             ) : collectionTab === "seen" ? (
-              <div className="rounded-[24px] bg-[#F8F6FD] p-5 text-center text-[15px] font-bold text-[#7D729B]">
-                Seen Mevas will appear here.
+              <div className="rounded-[24px] bg-[#F8F6FD] p-5 text-center">
+                <p className="text-[17px] font-black text-[#30215A]">
+                  {displayName} has been seen.
+                </p>
+                <p className="mx-auto mt-2 max-w-[280px] text-[14px] font-bold leading-6 text-[#7D729B]">
+                  Seen Mevas will become a fuller collection later. For now, this page shows the Meva you opened.
+                </p>
               </div>
             ) : (
-              <>
-                <p className="mb-3 text-left text-[16px] font-black uppercase tracking-[0.18em] text-[#8A7CA8]">
-                  Progress
+              <div className="rounded-[24px] bg-[#F8F6FD] p-5 text-center">
+                <p className="text-[17px] font-black text-[#30215A]">
+                  Collection progress
                 </p>
-                <div className="mb-4 rounded-[24px] bg-[#F8F6FD] p-4 text-left">
-                  <p className="text-[15px] font-bold text-[#7D729B]">Claimed progress</p>
-                  <div className="mt-3 h-[10px] overflow-hidden rounded-full bg-[#E7DFFF]">
-                    <div className="h-full w-[18%] rounded-full bg-[#8D76F6]" />
-                  </div>
-                  <p className="mt-3 text-[16px] font-black text-[#5A4D82]">1 / 6 collected</p>
+                <div className="mx-auto mt-4 h-[10px] max-w-[250px] overflow-hidden rounded-full bg-[#E7DFFF]">
+                  <div
+                    className={`h-full rounded-full bg-[#8D76F6] ${
+                      viewerState.isOwner || viewerState.isDeviceOwner
+                        ? "w-[18%]"
+                        : "w-[4%]"
+                    }`}
+                  />
                 </div>
-
-                <div className="space-y-3 text-left">
-                  {["Kibo", "Luma", "Miso", "Pip"].map((name, index) => (
-                    <div key={name} className="rounded-[22px] bg-[#F8F6FD] p-4">
-                      <div className="flex items-center justify-between">
-                        <p className="text-[17px] font-black text-[#30215A]">{name}</p>
-                        <p className="rounded-full bg-[#E7DFFF] px-3 py-1 text-[13px] font-black text-[#6B5C96]">
-                          {index < 3 ? "★ Owned" : "Seen"}
-                        </p>
-                      </div>
-                      <p className="mt-2 text-[14px] font-semibold text-[#7D729B]">
-                        {index < 3 ? "Claimed on device" : "Seen"}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </>
+                <p className="mt-3 text-[14px] font-bold leading-6 text-[#7D729B]">
+                  {viewerState.isOwner || viewerState.isDeviceOwner
+                    ? "1 Meva saved. More collection features come later."
+                    : "Save this Meva to start your collection."}
+                </p>
+              </div>
             )}
           </ModalShell>
         ) : null}
@@ -1451,18 +1475,10 @@
                 <div className="mb-4 space-y-2.5">
                   <div className="rounded-[22px] bg-[#F8F6FD] px-4 py-3 text-center">
                     <p className="text-[13px] font-black text-[#5A4D82]">
-                      {viewerState.isClaimed
-                        ? "Saved with Google"
-                        : viewerState.isDeviceOwner
-                        ? "Saved on this device"
-                        : "Not claimed yet"}
+                    {ownershipTitle}
                     </p>
                     <p className="mt-1 text-[12px] font-bold leading-5 text-[#8A7CA8]">
-                      {viewerState.isClaimed
-                        ? "This is the safest claim. It follows your account."
-                        : viewerState.isDeviceOwner
-                        ? "This only stays on this phone/browser. Save with Google if you want it protected."
-                        : "Keep it on this device for now, or save it with Google so it follows you."}
+                    {ownershipText}
                     </p>
                   </div>
 
@@ -1475,8 +1491,10 @@
                         return;
                       }
 
-                      if (viewerState.isClaimed) {
+                      if (viewerState.isOwner) {
                         setMoreMode("unclaimConfirm");
+                      } else if (viewerState.isClaimed) {
+                        showNotice("Already claimed", "This Meva is saved to another Google account.");
                       } else if (viewerState.isDeviceOwner) {
                         handleUpgradeDeviceClaim();
                       } else {
@@ -1487,8 +1505,10 @@
                   >
                     {actionLoading
                       ? "Please wait..."
-                      : viewerState.isClaimed
+                      : viewerState.isOwner
                       ? "Unclaim Google ownership"
+                      : viewerState.isClaimed
+                      ? "Already claimed"
                       : viewerState.isDeviceOwner
                       ? "Save with Google"
                       : "Claim with Google"}
