@@ -4,6 +4,7 @@
     getRedirectResult,
     onAuthStateChanged,
     setPersistence,
+    signInWithPopup,
     signInWithRedirect,
     signOut,
   } from "firebase/auth";
@@ -677,14 +678,20 @@ setViewerState({
     const beginGoogleSignIn = async (pendingAction) => {
       try {
         savePendingAction(pendingAction, mevaId);
-        await signInWithRedirect(auth, googleProvider);
-        return { mode: "redirect", user: null };
-      } catch (err) {
-        console.error("Google sign-in failed:", err);
     
-        showNotice("Google sign-in failed", "Please try again.");
+        const popupResult = await signInWithPopup(auth, googleProvider);
+        return { mode: "popup", user: popupResult.user };
+      } catch (popupErr) {
+        console.warn("Popup failed, trying redirect:", popupErr);
     
-        return { mode: "failed", user: null };
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return { mode: "redirect", user: null };
+        } catch (redirectErr) {
+          console.error("Google sign-in failed:", redirectErr);
+          showNotice("Google sign-in failed", "Please try again.");
+          return { mode: "failed", user: null };
+        }
       }
     };
     
@@ -1061,7 +1068,7 @@ setMevaPos((prev) => ({
 
   {isDesktop && (
     <div className="mt-2 text-center text-[11px] font-bold text-[#8A7CA8] opacity-70">
-      Actions only available on phone or tablet
+      Desktop taps and actions do not count toward Meva progress or leaderboards
     </div>
   )}
 </div>
