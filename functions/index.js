@@ -7,7 +7,7 @@ initializeApp();
 const db = getFirestore();
 
 const CALLABLE_OPTIONS = {
-  enforceAppCheck: true,
+  enforceAppCheck: false,
 };
 
 function normalizeMevaId(value) {
