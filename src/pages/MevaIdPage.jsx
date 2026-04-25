@@ -588,8 +588,11 @@ if (typeId) {
         mevaTypeData?.imageUrl ||
         mevaData?.imageUrl ||
         KIBO_IMAGE_URL;
-    const isMobileDevice = isMobileLike();
-    const isDesktop = !isMobileDevice;
+        const ua = navigator.userAgent || "";
+        const isPhoneDevice =
+          /iPhone|Android.*Mobile|Mobile/i.test(ua) && window.innerWidth < 768;
+        
+        const isDesktop = !isPhoneDevice;
     const primaryButtonLabel = viewerState.isClaimed ? "Unclaim Meva" : "Claim Meva";
 
     const ownershipTitle = viewerState.isOwner
@@ -847,7 +850,12 @@ showNotice("Google sign-in failed", redirectErr?.code || "Please try again.");
         showNotice("Unclaimed", `${displayName} is no longer saved to your Google account.`);
       } catch (err) {
         console.error("Unclaim failed:", err);
-        showNotice("Unclaim failed", err?.message || "We couldn’t unclaim this Meva right now.");
+        showNotice(
+          "Unclaim failed",
+          mevaData?.claimedEmail
+            ? `You did not sign into the correct Gmail. Correct Gmail: ${maskEmail(mevaData.claimedEmail)}`
+            : "You did not sign into the correct Gmail."
+        );
       } finally {
         setActionLoading(false);
       }
@@ -1601,16 +1609,14 @@ setMevaPos((prev) => ({
 
                       if (isDesktop) {
                         showNotice(
-                          "Use phone or tablet",
-                          "Claiming and unclaiming is only available on phone or tablet."
+                          "Use phone",
+                          "Claiming and unclaiming is only available on phones."
                         );
                         return;
                       }
                     
-                      if (viewerState.isOwner) {
+                      if (viewerState.isClaimed) {
                         setMoreMode("unclaimConfirm");
-                      } else if (viewerState.isClaimed) {
-                        showNotice("Already claimed", "This Meva is saved to another Google account.");
                       } else {
                         handleClaim();
                       }
@@ -1622,7 +1628,7 @@ setMevaPos((prev) => ({
                       : viewerState.isOwner
                       ? "Unclaim Google ownership"
                       : viewerState.isClaimed
-                      ? "Already claimed"
+                      ? "Unclaim Meva"
                       : "Claim with Google"}
                   </button>
 
@@ -1699,8 +1705,8 @@ setMevaPos((prev) => ({
 
                       if (isDesktop) {
                         showNotice(
-                          "Use phone or tablet",
-                          "Unclaiming is only available on phone or tablet."
+                          "Use phone",
+                          "Claiming and unclaiming is only available on phones."
                         );
                         return;
                       }
