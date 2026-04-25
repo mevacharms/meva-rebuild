@@ -753,13 +753,43 @@ exports.logMevaInteraction = onCall(async (request) => {
 });
 
 exports.getMevaLeaderboard = onCall(async (request) => {
-  const type = String(request.data?.type || "allTime");
+  const type = String(request.data?.type || "collectors");
   const weekKey = getEasternWeekKey();
 
-  if (type === "mostVisited") {
+  if (type === "collectors") {
+    const snap = await db
+      .collection("users")
+      .orderBy("claimedMevaCount", "desc")
+      .limit(50)
+      .get();
+
+    const rows = snap.docs
+      .map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          uid: data.uid || docSnap.id,
+          score: data.claimedMevaCount || 0,
+          leaderboardName: data.leaderboardName || generateLeaderboardName(),
+          hasClaimedMeva: data.hasClaimedMeva === true,
+        };
+      })
+      .filter((row) => row.hasClaimedMeva && row.score > 0)
+      .slice(0, 10);
+
+    return { type, weekKey, rows };
+  }
+
+  if (type === "mostFed" || type === "mostFound" || type === "ownerBond") {
+    const orderField =
+      type === "mostFed"
+        ? "visitorTapCount"
+        : type === "ownerBond"
+        ? "ownerTapCount"
+        : "tapCount";
+
     const snap = await db
       .collection("mevas")
-      .orderBy("tapCount", "desc")
+      .orderBy(orderField, "desc")
       .limit(50)
       .get();
 
@@ -769,19 +799,19 @@ exports.getMevaLeaderboard = onCall(async (request) => {
         return {
           uid: docSnap.id,
           mevaId: docSnap.id,
-          score: data.tapCount || 0,
-          leaderboardName: data.nickname || data.realName || docSnap.id,
+          score: data[orderField] || 0,
+          leaderboardName:
+            data.nickname ||
+            data.realName ||
+            data.officialName ||
+            docSnap.id,
           isClaimed: data.isClaimed === true,
         };
       })
-      .filter((row) => row.isClaimed)
-      .slice(0, 25);
+      .filter((row) => row.isClaimed && row.score > 0)
+      .slice(0, 10);
 
-    return {
-      type,
-      weekKey,
-      rows,
-    };
+    return { type, weekKey, rows };
   }
 
   const source =
@@ -809,13 +839,9 @@ exports.getMevaLeaderboard = onCall(async (request) => {
       };
     })
     .filter((row) => row.hasClaimedMeva)
-    .slice(0, 25);
+    .slice(0, 10);
 
-  return {
-    type,
-    weekKey,
-    rows,
-  };
+  return { type, weekKey, rows };
 });
 
 exports.setMevaLeaderboardName = onCall(async (request) => {

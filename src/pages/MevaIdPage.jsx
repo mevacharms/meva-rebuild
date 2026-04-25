@@ -207,7 +207,7 @@
     const [collectionTab, setCollectionTab] = useState("claimed");
     const [shopTab, setShopTab] = useState("wardrobe");
 
-    const [leaderboardType, setLeaderboardType] = useState("allTime");
+    const [leaderboardType, setLeaderboardType] = useState("collectors");
     const [leaderboardData, setLeaderboardData] = useState([]);
     const [leaderboardProfile, setLeaderboardProfile] = useState(null);
     const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
@@ -463,12 +463,12 @@
     }, [draggingMeva]);
 
     const safeRealName =
-      mevaData?.realName && String(mevaData.realName).toLowerCase() !== "edaline"
+    mevaData?.realName && !["edaline", "edalinet"].includes(String(mevaData.realName).toLowerCase())
         ? mevaData.realName
         : "Kibo";
 
     const displayName =
-      mevaData?.nickname && String(mevaData.nickname).toLowerCase() !== "edaline"
+    mevaData?.nickname && !["edaline", "edalinet"].includes(String(mevaData.nickname).toLowerCase())
         ? mevaData.nickname
         : safeRealName;
     const imageUrl = mevaData?.imageUrl || KIBO_IMAGE_URL;
@@ -770,7 +770,7 @@
       setMoreMode("main");
     };
 
-    const openLeaderboard = async (type = "allTime") => {
+    const openLeaderboard = async (type = "collectors") => {
       setPanel("leaderboard");
       setLeaderboardType(type);
       await fetchLeaderboard(type);
@@ -1160,7 +1160,7 @@
             </p>
 
             {[
-              ["Leaderboard", "See collectors and rankings", () => openLeaderboard("allTime")],
+              ["Leaderboard", "See collectors and rankings", () => openLeaderboard("collectors")],
               ["My Meva / Collection", "Open claimed, seen, and collection views", () => setPanel("collection")],
               ["Wardrobe / Shop", "Browse cosmetics, themes, and future items", () => setPanel("shop")],
               ["More", "Rename, claim, bug report, and play mode", () => setPanel("more")],
@@ -1180,65 +1180,51 @@
           </ModalShell>
         ) : null}
 
-        {panel === "leaderboard" ? (
+{panel === "leaderboard" ? (
           <ModalShell large>
-            <p className="mb-1 text-[22px] font-black text-[#30215A]">Top collectors</p>
-            <p className="mb-5 text-[15px] font-black uppercase tracking-[0.18em] text-[#8A7CA8]">
-              Top collectors
+            <p className="mb-1 text-[22px] font-black text-[#30215A]">
+              Meva Leaderboards
+            </p>
+            <p className="mb-4 text-[13px] font-black uppercase tracking-[0.16em] text-[#8A7CA8]">
+              Top 10
             </p>
 
-            <div className="mb-3 grid grid-cols-3 gap-2 rounded-[26px] bg-[#F4F1FB] p-2">
-              <button
-                type="button"
-                onClick={async () => {
-                  setLeaderboardType("allTime");
-                  await fetchLeaderboard("allTime");
-                }}
-                className={`h-[52px] rounded-[22px] text-[16px] font-black ${
-                  leaderboardType === "allTime"
-                    ? "bg-white text-[#5A4D82] shadow-sm"
-                    : "text-[#6B5C96]"
-                }`}
-              >
-                All Time
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  setLeaderboardType("weekly");
-                  await fetchLeaderboard("weekly");
-                }}
-                className={`h-[52px] rounded-[22px] text-[16px] font-black ${
-                  leaderboardType === "weekly"
-                    ? "bg-white text-[#5A4D82] shadow-sm"
-                    : "text-[#6B5C96]"
-                }`}
-              >
-                Weekly
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  setLeaderboardType("visited");
-                  await fetchLeaderboard("visited");
-                }}
-                className={`h-[52px] rounded-[22px] text-[14px] font-black ${
-                  leaderboardType === "visited"
-                    ? "bg-white text-[#5A4D82] shadow-sm"
-                    : "text-[#6B5C96]"
-                }`}
-              >
-                Visited
-              </button>
+            <div className="mb-4 grid grid-cols-2 gap-2 rounded-[26px] bg-[#F4F1FB] p-2">
+              {[
+                ["collectors", "Collectors"],
+                ["mostFed", "Most Fed"],
+                ["mostFound", "Most Found"],
+                ["ownerBond", "Owner Bond"],
+              ].map(([type, label]) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={async () => {
+                    setLeaderboardType(type);
+                    await fetchLeaderboard(type);
+                  }}
+                  className={`h-[48px] rounded-[20px] text-[13px] font-black ${
+                    leaderboardType === type
+                      ? "bg-white text-[#5A4D82] shadow-sm"
+                      : "text-[#6B5C96]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
-            {leaderboardType === "weekly" ? (
-              <p className="mb-4 text-[14px] font-black text-[#5A4D82]">
-                Weekly leaderboard resets in {weeklyResetText}.
-              </p>
-            ) : null}
+            <p className="mx-auto mb-3 max-w-[320px] text-[13px] font-bold leading-5 text-[#8A7CA8]">
+              {leaderboardType === "collectors"
+                ? "Who has saved the most Mevas."
+                : leaderboardType === "mostFed"
+                ? "Which Mevas have been fed the most by visitors."
+                : leaderboardType === "mostFound"
+                ? "Which Mevas have been opened the most."
+                : "Which owners have bonded with their Meva the most."}
+            </p>
 
-            <div className="min-h-[155px] max-h-[210px] space-y-2 overflow-y-auto rounded-[24px] bg-[#F8F6FD] p-3">
+            <div className="min-h-[230px] max-h-[360px] space-y-2 overflow-y-auto rounded-[24px] bg-[#F8F6FD] p-3">
               {loadingLeaderboard ? (
                 <p className="py-10 text-center text-[15px] font-bold text-[#8A7CA8]">
                   Loading...
@@ -1250,18 +1236,18 @@
               ) : (
                 leaderboardData.map((item, index) => (
                   <div
-                    key={item.uid}
-                    className="flex items-center justify-between rounded-[18px] bg-white px-4 py-3 shadow-sm"
+                    key={`${item.uid}-${index}`}
+                    className="flex items-center justify-between gap-3 rounded-[18px] bg-white px-4 py-3 shadow-sm"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#EFE8FB] text-[14px] font-black text-[#6B5C96]">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#EFE8FB] text-[14px] font-black text-[#6B5C96]">
                         {index + 1}
                       </div>
-                      <p className="text-[15px] font-black text-[#5A4D82]">
+                      <p className="truncate text-[15px] font-black text-[#5A4D82]">
                         {item.leaderboardName}
                       </p>
                     </div>
-                    <p className="text-[15px] font-black text-[#7B6F9E]">
+                    <p className="shrink-0 text-[14px] font-black text-[#7B6F9E]">
                       {item.score}
                     </p>
                   </div>
