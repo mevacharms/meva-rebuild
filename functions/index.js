@@ -797,7 +797,7 @@ exports.getMevaLeaderboard = onCall(async (request) => {
       type === "mostFed"
         ? "countedTapTotal"
         : type === "ownerCare"
-        ? "ownerTapCount"
+        ? "ownerCountedTapTotal"
         : "tapCount";
 
     const snap = await db

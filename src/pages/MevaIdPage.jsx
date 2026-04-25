@@ -1200,7 +1200,7 @@
               {[
                 ["collectors", "Collectors"],
                 ["mostFed", "Most Fed"],
-                ["mostFound", "Most Found"],
+                ["mostFound", "Most Opened"],
                 ["ownerCare", "Owner Care"],
               ].map(([type, label]) => (
                 <button
@@ -1227,7 +1227,7 @@
                 : leaderboardType === "mostFed"
                 ? "Mevas fed the most overall."
                 : leaderboardType === "mostFound"
-                ? "Mevas opened the most."
+                ? "Mevas opened the most. Unique finds will come later."
                 : "Owners who care for their own Meva most."}
             </p>
 
