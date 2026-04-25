@@ -676,25 +676,32 @@ setViewerState({
     };
 
     const beginGoogleSignIn = async (pendingAction) => {
+      const ua = navigator.userAgent || "";
+      const isTablet =
+        /iPad|Tablet/i.test(ua) ||
+        (navigator.maxTouchPoints > 1 && window.innerWidth >= 768);
+    
       try {
-        savePendingAction(pendingAction, mevaId);
-    
-        const ua = navigator.userAgent || "";
-        const isTablet =
-          /iPad|Tablet/i.test(ua) ||
-          (navigator.maxTouchPoints > 1 && window.innerWidth >= 768);
-    
-        if (isTablet) {
-          await signInWithRedirect(auth, googleProvider);
-          return { mode: "redirect", user: null };
+        if (!isTablet) {
+          const popupResult = await signInWithPopup(auth, googleProvider);
+          return { mode: "popup", user: popupResult.user };
         }
     
-        const popupResult = await signInWithPopup(auth, googleProvider);
-        return { mode: "popup", user: popupResult.user };
+        savePendingAction(pendingAction, mevaId);
+        await signInWithRedirect(auth, googleProvider);
+        return { mode: "redirect", user: null };
       } catch (err) {
-        console.error("Google sign-in failed:", err);
-        showNotice("Google sign-in failed", "Please try again.");
-        return { mode: "failed", user: null };
+        console.warn("Primary Google sign-in failed:", err);
+    
+        try {
+          savePendingAction(pendingAction, mevaId);
+          await signInWithRedirect(auth, googleProvider);
+          return { mode: "redirect", user: null };
+        } catch (redirectErr) {
+          console.error("Google sign-in failed:", redirectErr);
+          showNotice("Google sign-in failed", "Please try again.");
+          return { mode: "failed", user: null };
+        }
       }
     };
     
