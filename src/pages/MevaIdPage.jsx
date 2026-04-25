@@ -4,7 +4,6 @@
     getRedirectResult,
     onAuthStateChanged,
     setPersistence,
-    signInWithPopup,
     signInWithRedirect,
     signOut,
   } from "firebase/auth";
@@ -636,15 +635,15 @@ if (typeId) {
 
       const viewerResult = await getMevaViewerState({ mevaId });
 
-      const deviceOwner = false;
+const deviceOwner = false;
 
-      setViewerState({
-        isSignedIn: !!result.data?.isSignedIn,
-        isClaimed: !!result.data?.isClaimed,
-        isOwner: !!result.data?.isOwner,
-        canClaim: !!result.data?.canClaim,
-        canUnclaim: !!result.data?.canUnclaim,
-      });
+setViewerState({
+  isSignedIn: !!viewerResult.data?.isSignedIn,
+  isClaimed: !!viewerResult.data?.isClaimed,
+  isOwner: !!viewerResult.data?.isOwner,
+  canClaim: !!viewerResult.data?.canClaim,
+  canUnclaim: !!viewerResult.data?.canUnclaim,
+});
     };
 
     const showNotice = (title, message) => {
@@ -654,25 +653,14 @@ if (typeId) {
 
     const beginGoogleSignIn = async (pendingAction) => {
       try {
-        if (!isMobileLike()) {
-          savePendingAction(pendingAction, mevaId);
-          await signInWithRedirect(auth, googleProvider);
-          return { mode: "redirect", user: null };
-        }
-
-        const popupResult = await signInWithPopup(auth, googleProvider);
-        return { mode: "popup", user: popupResult.user };
-      } catch (popupErr) {
-        console.error("Popup sign-in failed:", popupErr);
-
-        if (popupErr?.code === "auth/popup-blocked") {
-          showNotice("Google sign-in blocked", "Please allow popups and try again.");
-        } else if (popupErr?.code === "auth/popup-closed-by-user") {
-          showNotice("Google sign-in closed", "Sign-in was closed before it finished.");
-        } else {
-          showNotice("Google sign-in failed", "Please try again.");
-        }
-
+        savePendingAction(pendingAction, mevaId);
+        await signInWithRedirect(auth, googleProvider);
+        return { mode: "redirect", user: null };
+      } catch (err) {
+        console.error("Google sign-in failed:", err);
+    
+        showNotice("Google sign-in failed", "Please try again.");
+    
         return { mode: "failed", user: null };
       }
     };
@@ -1027,6 +1015,11 @@ setMevaPos((prev) => ({
           {renderMainShell(
             <>
               <div className="flex justify-center pt-[18px]">
+              {isDesktop && (
+  <div className="mt-2 text-center text-[11px] font-bold text-[#8A7CA8] opacity-70">
+    Actions only available on phone or tablet
+  </div>
+)}
               <div className="grid grid-cols-2 gap-1.5 rounded-full bg-white/45 p-1 shadow-sm backdrop-blur-sm">
               <div className="min-w-[78px] rounded-full bg-white/90 px-2.5 py-1 text-center">
                     <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#A095B8]">
@@ -1045,8 +1038,14 @@ setMevaPos((prev) => ({
                       (mevaData?.visitorTapCount || 0) + (mevaData?.ownerTapCount || 0)}
                     </p>
                   </div>
-                </div>
+                  </div>
               </div>
+
+              {isDesktop && (
+                <div className="mt-2 text-center text-[11px] font-bold text-[#8A7CA8] opacity-70">
+                  Actions only available on phone or tablet
+                </div>
+              )}
 
               <div className="mt-[168px] flex justify-center">
                 <div className="relative flex h-[250px] w-full items-start justify-center">
@@ -1115,11 +1114,6 @@ setMevaPos((prev) => ({
                   Tap, hold, or drag to interact
                 </p>
               </div>
-              {isDesktop && (
-  <div className="absolute bottom-[clamp(12px,2.5dvh,24px)] left-1/2 -translate-x-1/2 text-[11px] font-bold text-[#8A7CA8] opacity-70">
-    Taps only count on phone/tablet
-  </div>
-)}
 
               {isDebug ? (
                 <div className="mt-4 max-h-[160px] overflow-auto rounded-[18px] bg-[#EEF4FD] p-4 text-left text-[12px] leading-5 text-[#4D406D]">
@@ -1494,6 +1488,14 @@ setMevaPos((prev) => ({
                     disabled={actionLoading}
                     onClick={() => {
 
+                      if (isDesktop) {
+                        showNotice(
+                          "Use phone or tablet",
+                          "Claiming and unclaiming is only available on phone or tablet."
+                        );
+                        return;
+                      }
+                    
                       if (viewerState.isOwner) {
                         setMoreMode("unclaimConfirm");
                       } else if (viewerState.isClaimed) {
@@ -1583,6 +1585,15 @@ setMevaPos((prev) => ({
                     ref={unclaimButtonRef}
                     type="button"
                     onClick={() => {
+
+                      if (isDesktop) {
+                        showNotice(
+                          "Use phone or tablet",
+                          "Unclaiming is only available on phone or tablet."
+                        );
+                        return;
+                      }
+                    
                       if (unclaimInputRef.current?.value !== "confirm") return;
                       handleUnclaim();
                     }}
