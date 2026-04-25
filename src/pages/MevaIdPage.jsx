@@ -78,8 +78,15 @@
 
   function isMobileLike() {
     if (typeof window === "undefined") return false;
+  
+    const ua = navigator.userAgent || "";
+    const hasTouch = navigator.maxTouchPoints > 0;
+    const coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches;
+  
     return (
-      /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent) ||
+      /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua) ||
+      hasTouch ||
+      coarsePointer ||
       window.innerWidth < 1024
     );
   }
@@ -332,11 +339,27 @@ const IDLE_LINES = [
 
         if (nextUser) {
           setAuthMessage("");
-
+        
           try {
             await syncUserProfile();
+        
+            const pending = readPendingAction();
+        
+            if (pending?.mevaId === mevaId) {
+              if (pending.action === "claim") {
+                await claimMeva({ mevaId });
+              }
+        
+              if (pending.action === "unclaim") {
+                await unclaimMeva({ mevaId });
+                await signOut(auth);
+              }
+        
+              clearPendingAction();
+              await refreshCurrentMeva();
+            }
           } catch (err) {
-            console.error("User sync failed:", err);
+            console.error("User sync / pending action failed:", err);
           }
         }
       });
@@ -1014,40 +1037,36 @@ setMevaPos((prev) => ({
         <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#EAF1FB] px-4 pt-0 select-none [-webkit-user-select:none] [-webkit-touch-callout:none]">
           {renderMainShell(
             <>
-              <div className="flex justify-center pt-[18px]">
-              {isDesktop && (
-  <div className="mt-2 text-center text-[11px] font-bold text-[#8A7CA8] opacity-70">
-    Actions only available on phone or tablet
+              <div className="flex flex-col items-center pt-[18px]">
+  <div className="grid grid-cols-2 gap-1.5 rounded-full bg-white/45 p-1 shadow-sm backdrop-blur-sm">
+    <div className="min-w-[78px] rounded-full bg-white/90 px-2.5 py-1 text-center">
+      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#A095B8]">
+        Visited
+      </p>
+      <p className="text-[13px] font-black text-[#625683]">
+        {mevaData?.tapCount ?? 0}
+      </p>
+    </div>
+
+    <div className="min-w-[78px] rounded-full bg-white/90 px-2.5 py-1 text-center">
+      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#A095B8]">
+        Fed
+      </p>
+      <p className="text-[13px] font-black text-[#625683]">
+        {mevaData?.countedTapTotal ??
+          (mevaData?.visitorTapCount || 0) + (mevaData?.ownerTapCount || 0)}
+      </p>
+    </div>
   </div>
-)}
-              <div className="grid grid-cols-2 gap-1.5 rounded-full bg-white/45 p-1 shadow-sm backdrop-blur-sm">
-              <div className="min-w-[78px] rounded-full bg-white/90 px-2.5 py-1 text-center">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#A095B8]">
-                      Visited
-                    </p>
-                    <p className="text-[13px] font-black text-[#625683]">
-                      {mevaData?.tapCount ?? 0}
-                    </p>
-                  </div>
-                  <div className="min-w-[78px] rounded-full bg-white/90 px-2.5 py-1 text-center">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#A095B8]">
-                      Fed
-                    </p>
-                    <p className="text-[13px] font-black text-[#625683]">
-                    {mevaData?.countedTapTotal ??
-                      (mevaData?.visitorTapCount || 0) + (mevaData?.ownerTapCount || 0)}
-                    </p>
-                  </div>
-                  </div>
-              </div>
 
-              {isDesktop && (
-                <div className="mt-2 text-center text-[11px] font-bold text-[#8A7CA8] opacity-70">
-                  Actions only available on phone or tablet
-                </div>
-              )}
+  {isDesktop && (
+    <div className="mt-2 text-center text-[11px] font-bold text-[#8A7CA8] opacity-70">
+      Actions only available on phone or tablet
+    </div>
+  )}
+</div>
 
-              <div className="mt-[168px] flex justify-center">
+<div className="mt-[150px] flex justify-center">
                 <div className="relative flex h-[250px] w-full items-start justify-center">
                 <div
                   className="absolute left-1/2 top-0 rounded-[22px] bg-white/95 px-5 py-2.5 text-[14px] font-black text-[#5E537F] shadow-sm transition-transform duration-100 ease-out"
