@@ -4,6 +4,7 @@
     getRedirectResult,
     onAuthStateChanged,
     setPersistence,
+    signInWithPopup,
     signInWithRedirect,
     signOut,
   } from "firebase/auth";
@@ -677,8 +678,19 @@ setViewerState({
     const beginGoogleSignIn = async (pendingAction) => {
       try {
         savePendingAction(pendingAction, mevaId);
-        await signInWithRedirect(auth, googleProvider);
-        return { mode: "redirect", user: null };
+    
+        const ua = navigator.userAgent || "";
+        const isTablet =
+          /iPad|Tablet/i.test(ua) ||
+          (navigator.maxTouchPoints > 1 && window.innerWidth >= 768);
+    
+        if (isTablet) {
+          await signInWithRedirect(auth, googleProvider);
+          return { mode: "redirect", user: null };
+        }
+    
+        const popupResult = await signInWithPopup(auth, googleProvider);
+        return { mode: "popup", user: popupResult.user };
       } catch (err) {
         console.error("Google sign-in failed:", err);
         showNotice("Google sign-in failed", "Please try again.");
