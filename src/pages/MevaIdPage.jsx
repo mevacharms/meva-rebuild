@@ -907,12 +907,12 @@
         <a
           href="/m"
           aria-label="Back to Meva"
-          className="absolute left-3 top-4 z-20 flex h-[54px] w-[54px] items-center justify-center"
+          className="absolute left-3 top-4 z-20 flex h-[58px] w-[58px] items-center justify-center"
         >
           <img
             src={MEVA_LOGO_URL}
             alt="Meva logo"
-            className="h-[96px] w-auto object-contain select-none pointer-events-none"
+            className="h-[116px] w-[116px] max-w-none object-cover select-none pointer-events-none"
             draggable="false"
           />
         </a>
