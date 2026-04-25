@@ -921,9 +921,13 @@
           type="button"
           aria-label="Open menu"
           onClick={() => setPanel("menu")}
-          className="absolute right-3 top-4 z-20 flex h-[54px] w-[54px] items-center justify-center rounded-full bg-white/90 text-[25px] font-black text-[#6B5C96] shadow-[0_12px_28px_rgba(95,72,150,0.10)]"
+          className="absolute right-4 top-5 z-20 flex h-[48px] w-[48px] items-center justify-center rounded-full bg-white/90 text-[23px] font-black text-[#6B5C96] shadow-[0_10px_24px_rgba(95,72,150,0.10)]"
         >
-          ≡
+          <div className="flex flex-col items-center justify-center gap-[3px] translate-y-[0.5px]">
+  <span className="block h-[2.5px] w-[18px] rounded-full bg-[#6B5C96]" />
+  <span className="block h-[2.5px] w-[18px] rounded-full bg-[#6B5C96]" />
+  <span className="block h-[2.5px] w-[18px] rounded-full bg-[#6B5C96]" />
+</div>
         </button>
 
         {content}
