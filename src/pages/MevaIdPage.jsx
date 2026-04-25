@@ -889,9 +889,14 @@ if (typeId) {
       }
 
       window.requestAnimationFrame(() => {
-        setMevaPos({
-          x: Math.max(-120, Math.min(120, dragRef.current.baseX + dx)),
-          y: Math.max(-155, Math.min(135, dragRef.current.baseY + dy)),
+        setMevaPos((prev) => {
+          const targetX = Math.max(-120, Math.min(120, dragRef.current.baseX + dx));
+          const targetY = Math.max(-155, Math.min(135, dragRef.current.baseY + dy));
+      
+          return {
+            x: prev.x + (targetX - prev.x) * 0.25,
+            y: prev.y + (targetY - prev.y) * 0.25,
+          };
         });
       });
     };
@@ -909,6 +914,12 @@ if (typeId) {
       dragRef.current.active = false;
       holdActiveRef.current = false;
       setDraggingMeva(false);
+
+// small settle easing
+setMevaPos((prev) => ({
+  x: prev.x * 0.9,
+  y: prev.y * 0.9,
+}));
 
       if (wasHolding) {
         setMevaMood("calm");
@@ -1094,7 +1105,7 @@ if (typeId) {
                 <div
                   className="absolute left-1/2 top-0 rounded-[22px] bg-white/95 px-5 py-2.5 text-[14px] font-black text-[#5E537F] shadow-sm transition-transform duration-100 ease-out"
                   style={{
-                    transform: `translate(calc(-50% + ${mevaPos.x}px), ${mevaPos.y}px)`,
+                    transform: `translate(calc(-50% + ${mevaPos.x}px), calc(${mevaPos.y}px - 8px))`,
                   }}
                 >
                   {mevaText}
@@ -1102,10 +1113,14 @@ if (typeId) {
                   </div>
 
                   <div
-                    className={`absolute top-[32px] z-0 flex h-[190px] w-[190px] items-center justify-center rounded-full transition-opacity duration-300 ${
-                      glowActive ? "opacity-100" : "opacity-0"
-                    }`}
-                  >
+  className={`absolute z-0 flex h-[190px] w-[190px] items-center justify-center rounded-full transition-opacity duration-300 ${
+    glowActive ? "opacity-100" : "opacity-0"
+  }`}
+  style={{
+    transform: `translate(${mevaPos.x}px, ${mevaPos.y}px)`,
+    top: "32px",
+  }}
+>
                     <div className="h-full w-full rounded-full bg-gradient-to-r from-[#A894F0]/12 via-[#8D76F6]/10 to-[#7E66F4]/12 blur-[34px]" />
                   </div>
 
