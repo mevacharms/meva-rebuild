@@ -241,7 +241,8 @@ const IDLE_LINES = [
     const unclaimInputRef = useRef(null);
   const unclaimButtonRef = useRef(null);
   const [notice, setNotice] = useState(null);
-  const [mevaText, setMevaText] = useState("tap me gently");
+const [debugError, setDebugError] = useState("");
+const [mevaText, setMevaText] = useState("tap me gently");
     const holdTimerRef = useRef(null);
     const holdActiveRef = useRef(false);
     const dragRef = useRef({
@@ -253,8 +254,19 @@ const IDLE_LINES = [
       baseY: 0,
     });
 
-    const isDebug =
-      new URLSearchParams(window.location.search).get("debug") === "1";
+    useEffect(() => {
+      window.onerror = function (message, source, lineno, colno, error) {
+        setDebugError(
+          String(error?.message || message || "Unknown error")
+        );
+      };
+    
+      window.onunhandledrejection = function (event) {
+        setDebugError(
+          String(event?.reason?.message || event?.reason || "Unknown promise error")
+        );
+      };
+    }, []);
 
     const getMevaViewerState = useMemo(
       () => httpsCallable(functions, "getMevaViewerState"),
@@ -699,7 +711,8 @@ setViewerState({
           return { mode: "redirect", user: null };
         } catch (redirectErr) {
           console.error("Google sign-in failed:", redirectErr);
-          showNotice("Google sign-in failed", "Please try again.");
+setDebugError(redirectErr?.code || redirectErr?.message || "Google sign-in failed");
+showNotice("Google sign-in failed", redirectErr?.code || "Please try again.");
           return { mode: "failed", user: null };
         }
       }
@@ -1151,6 +1164,11 @@ setMevaPos((prev) => ({
                 </p>
               </div>
 
+              {debugError ? (
+  <div className="absolute left-3 right-3 top-[82px] z-40 rounded-[18px] bg-white px-4 py-3 text-center text-[12px] font-bold text-red-500 shadow-sm">
+    {debugError}
+  </div>
+) : null}
               {isDebug ? (
                 <div className="mt-4 max-h-[160px] overflow-auto rounded-[18px] bg-[#EEF4FD] p-4 text-left text-[12px] leading-5 text-[#4D406D]">
                   <p className="font-extrabold">Debug</p>
