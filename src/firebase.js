@@ -20,9 +20,12 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
+// ✅ FIXED App Check
 if (import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY) {
   initializeAppCheck(app, {
-    provider: new ReCaptchaV3Provider(import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY),
+    provider: new ReCaptchaV3Provider(
+      import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY
+    ),
     isTokenAutoRefreshEnabled: true,
   });
 }
