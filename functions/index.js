@@ -6,6 +6,10 @@ initializeApp();
 
 const db = getFirestore();
 
+const CALLABLE_OPTIONS = {
+  enforceAppCheck: true,
+};
+
 function normalizeMevaId(value) {
   return String(value || "").trim().toUpperCase();
 }
@@ -172,7 +176,7 @@ function assertValidEmail(email) {
   }
 }
 
-exports.submitEarlyAccess = onCall(async (request) => {
+exports.submitEarlyAccess = onCall(CALLABLE_OPTIONS, async (request) => {
   const name = sanitizeText(request.data?.name, 80);
   const email = normalizeEmail(request.data?.email);
   const source = sanitizeText(request.data?.source || "landing-page", 80);
@@ -248,7 +252,7 @@ async function createEvent({
   });
 }
 
-exports.getMevaViewerState = onCall(async (request) => {
+exports.getMevaViewerState = onCall(CALLABLE_OPTIONS, async (request) => {
   const mevaId = normalizeMevaId(request.data?.mevaId);
   assertValidMevaId(mevaId);
 
@@ -281,7 +285,7 @@ exports.getMevaViewerState = onCall(async (request) => {
   };
 });
 
-exports.syncUserProfile = onCall(async (request) => {
+exports.syncUserProfile = onCall(CALLABLE_OPTIONS, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must sign in first.");
   }
@@ -306,7 +310,7 @@ exports.syncUserProfile = onCall(async (request) => {
   return { success: true };
 });
 
-exports.claimMeva = onCall(async (request) => {
+exports.claimMeva = onCall(CALLABLE_OPTIONS, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must sign in first.");
   }
@@ -415,7 +419,7 @@ exports.claimMeva = onCall(async (request) => {
   };
 });
 
-exports.unclaimMeva = onCall(async (request) => {
+exports.unclaimMeva = onCall(CALLABLE_OPTIONS, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must sign in first.");
   }
@@ -513,7 +517,7 @@ exports.unclaimMeva = onCall(async (request) => {
   };
 });
 
-exports.setMevaNickname = onCall(async (request) => {
+exports.setMevaNickname = onCall(CALLABLE_OPTIONS, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must sign in first.");
   }
@@ -573,7 +577,7 @@ exports.setMevaNickname = onCall(async (request) => {
   };
 });
 
-exports.logMevaInteraction = onCall(async (request) => {
+exports.logMevaInteraction = onCall(CALLABLE_OPTIONS, async (request) => {
   const mevaId = normalizeMevaId(request.data?.mevaId);
   const eventType = normalizeEventType(request.data?.eventType);
 
@@ -825,7 +829,7 @@ exports.logMevaInteraction = onCall(async (request) => {
   };
 });
 
-exports.getMevaLeaderboard = onCall(async (request) => {
+exports.getMevaLeaderboard = onCall(CALLABLE_OPTIONS, async (request) => {
   const type = String(request.data?.type || "collectors");
   const weekKey = getEasternWeekKey();
 
@@ -918,7 +922,7 @@ exports.getMevaLeaderboard = onCall(async (request) => {
   return { type, weekKey, rows };
 });
 
-exports.setMevaLeaderboardName = onCall(async (request) => {
+exports.setMevaLeaderboardName = onCall(CALLABLE_OPTIONS, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must sign in first.");
   }
@@ -996,7 +1000,7 @@ exports.setMevaLeaderboardName = onCall(async (request) => {
   };
 });
 
-exports.getMevaLeaderboardProfile = onCall(async (request) => {
+exports.getMevaLeaderboardProfile = onCall(CALLABLE_OPTIONS, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must sign in first.");
   }
@@ -1022,7 +1026,7 @@ exports.getMevaLeaderboardProfile = onCall(async (request) => {
   };
 });
 
-exports.getMevaAnalyticsSummary = onCall(async (request) => {
+exports.getMevaAnalyticsSummary = onCall(CALLABLE_OPTIONS, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must sign in first.");
   }
