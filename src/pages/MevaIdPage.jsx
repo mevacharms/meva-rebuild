@@ -253,7 +253,10 @@ const [mevaText, setMevaText] = useState("tap me gently");
       baseX: 0,
       baseY: 0,
     });
-
+    
+    const isDebug =
+      new URLSearchParams(window.location.search).get("debug") === "1";
+    
     useEffect(() => {
       window.onerror = function (message, source, lineno, colno, error) {
         setDebugError(
