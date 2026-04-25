@@ -185,6 +185,7 @@
     const [notFound, setNotFound] = useState(false);
     const [error, setError] = useState("");
     const [mevaData, setMevaData] = useState(null);
+const [mevaTypeData, setMevaTypeData] = useState(null);
 
     const [user, setUser] = useState(null);
     const [authReady, setAuthReady] = useState(false);
@@ -221,6 +222,27 @@
     const [tapBounce, setTapBounce] = useState(false);
     const [glowActive, setGlowActive] = useState(false);
     const [mevaMood, setMevaMood] = useState("calm");
+
+const TAP_LINES = [
+  "hi",
+  "that felt nice",
+  "again?",
+  "you’re here",
+  "I like that",
+];
+
+const HOLD_LINES = [
+  "stay a bit",
+  "I’m here",
+  "don’t rush",
+  "this is nice",
+];
+
+const IDLE_LINES = [
+  "tap me gently",
+  "I’m waiting",
+  "still here",
+];
     const [mevaPos, setMevaPos] = useState({ x: 0, y: 0 });
     const [draggingMeva, setDraggingMeva] = useState(false);
     const [renameDraft, setRenameDraft] = useState("");
@@ -228,7 +250,8 @@
     const [renamingMeva, setRenamingMeva] = useState(false);
     const unclaimInputRef = useRef(null);
   const unclaimButtonRef = useRef(null);
-    const [notice, setNotice] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [mevaText, setMevaText] = useState("tap me gently");
     const holdTimerRef = useRef(null);
     const holdActiveRef = useRef(false);
     const dragRef = useRef({
@@ -381,6 +404,22 @@
           }
 
           setMevaData({ id: mevaId, ...mevaSnap.data() });
+          const typeId = mevaSnap.data()?.mevaTypeDocId;
+
+if (typeId) {
+  try {
+    const typeRef = doc(db, "mevaTypes", typeId);
+    const typeSnap = await getDoc(typeRef);
+
+    if (typeSnap.exists()) {
+      setMevaTypeData(typeSnap.data());
+    } else {
+      setMevaTypeData(null);
+    }
+  } catch {
+    setMevaTypeData(null);
+  }
+}
           setNotFound(false);
           setLoading(false);
         } catch (err) {
@@ -463,15 +502,18 @@
     }, [draggingMeva]);
 
     const safeRealName =
-    mevaData?.realName && !["edaline", "edalinet"].includes(String(mevaData.realName).toLowerCase())
+      mevaData?.realName && !["edaline", "edalinet"].includes(String(mevaData.realName).toLowerCase())
         ? mevaData.realName
-        : "Kibo";
+        : mevaTypeData?.officialName || "Kibo";
 
     const displayName =
     mevaData?.nickname && !["edaline", "edalinet"].includes(String(mevaData.nickname).toLowerCase())
         ? mevaData.nickname
         : safeRealName;
-    const imageUrl = mevaData?.imageUrl || KIBO_IMAGE_URL;
+        const imageUrl =
+        mevaTypeData?.imageUrl ||
+        mevaData?.imageUrl ||
+        KIBO_IMAGE_URL;
     const isMobileDevice = isMobileLike();
     const primaryButtonLabel = viewerState.isClaimed ? "Unclaim Meva" : "Claim Meva";
 
@@ -807,7 +849,8 @@
     const handleTap = async () => {
       setTapBounce(true);
         setGlowActive(true);
-      setMevaMood("happy");
+        setMevaMood("happy");
+        setMevaText(TAP_LINES[Math.floor(Math.random() * TAP_LINES.length)]);
       setMevaData((prev) =>
         prev
           ? {
@@ -827,7 +870,10 @@
         setTapBounce(false);
         setGlowActive(false);
       }, 220);
-      window.setTimeout(() => setMevaMood("calm"), 900);
+      window.setTimeout(() => {
+        setMevaMood("calm");
+        setMevaText(IDLE_LINES[Math.floor(Math.random() * IDLE_LINES.length)]);
+      }, 900);
 
       await trackInteraction("tap");
     };
@@ -890,13 +936,15 @@
         baseY: mevaPos.y,
       };
 
+      setMevaMood("soft");
+      setGlowActive(true);
+      setMevaText(HOLD_LINES[Math.floor(Math.random() * HOLD_LINES.length)]);
+
       holdTimerRef.current = window.setTimeout(() => {
         if (!dragRef.current.active || dragRef.current.moved) return;
         holdActiveRef.current = true;
-        setMevaMood("soft");
-      setGlowActive(true);
         trackInteraction("hold_start");
-      }, 300);
+      }, 200);
 
       setDraggingMeva(true);
     };
@@ -1049,7 +1097,7 @@
                     transform: `translate(calc(-50% + ${mevaPos.x}px), ${mevaPos.y}px)`,
                   }}
                 >
-                  {viewerState.isOwner || viewerState.isDeviceOwner ? "I’m with you" : "tap me gently"}
+                  {mevaText}
                     <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-l-[10px] border-r-[10px] border-t-[12px] border-l-transparent border-r-transparent border-t-white" />
                   </div>
 
@@ -1080,7 +1128,7 @@
                       draggingMeva ? "cursor-grabbing" : ""
                     } transition-transform duration-100 ease-out`}
                     style={{
-                      animation: "none",
+                      animation: mevaMood === "calm" ? "mevaFloat 3.5s ease-in-out infinite" : "none",
                       transform: `translate(${mevaPos.x}px, ${mevaPos.y}px) scale(${
   glowActive ? 1.06 : mevaMood === "soft" ? 1.04 : tapBounce ? 1.08 : 1
 }) rotate(${tapBounce ? 2 : 0}deg)`,
