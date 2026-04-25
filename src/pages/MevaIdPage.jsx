@@ -812,7 +812,13 @@
         prev
           ? {
               ...prev,
-              visitorTapCount: (prev.visitorTapCount || 0) + 1,
+              countedTapTotal: (prev.countedTapTotal || 0) + 1,
+              ownerTapCount: viewerState.isOwner
+                ? (prev.ownerTapCount || 0) + 1
+                : prev.ownerTapCount || 0,
+              visitorTapCount: viewerState.isOwner
+                ? prev.visitorTapCount || 0
+                : (prev.visitorTapCount || 0) + 1,
             }
           : prev
       );
@@ -1028,7 +1034,8 @@
                       Fed
                     </p>
                     <p className="text-[13px] font-black text-[#625683]">
-                      {mevaData?.visitorTapCount ?? 0}
+                    {mevaData?.countedTapTotal ??
+                      (mevaData?.visitorTapCount || 0) + (mevaData?.ownerTapCount || 0)}
                     </p>
                   </div>
                 </div>
@@ -1194,7 +1201,7 @@
                 ["collectors", "Collectors"],
                 ["mostFed", "Most Fed"],
                 ["mostFound", "Most Found"],
-                ["ownerBond", "Owner Bond"],
+                ["ownerCare", "Owner Care"],
               ].map(([type, label]) => (
                 <button
                   key={type}
@@ -1216,12 +1223,12 @@
 
             <p className="mx-auto mb-3 max-w-[320px] text-[13px] font-bold leading-5 text-[#8A7CA8]">
               {leaderboardType === "collectors"
-                ? "Who has saved the most Mevas."
+                ? "Claimed the most Mevas."
                 : leaderboardType === "mostFed"
-                ? "Which Mevas have been fed the most by visitors."
+                ? "Mevas fed the most overall."
                 : leaderboardType === "mostFound"
-                ? "Which Mevas have been opened the most."
-                : "Which owners have bonded with their Meva the most."}
+                ? "Mevas opened the most."
+                : "Owners who care for their own Meva most."}
             </p>
 
             <div className="min-h-[230px] max-h-[360px] space-y-2 overflow-y-auto rounded-[24px] bg-[#F8F6FD] p-3">

@@ -101,6 +101,19 @@ function generateLeaderboardName() {
   return `${word}${number}`;
 }
 
+function safeDisplayName(...values) {
+  for (const value of values) {
+    const text = String(value || "").trim();
+    const lower = text.toLowerCase();
+
+    if (text && !["edaline", "edalinet"].includes(lower)) {
+      return text;
+    }
+  }
+
+  return "Kibo";
+}
+
 function normalizeLeaderboardName(value) {
   return String(value || "").trim();
 }
@@ -769,7 +782,7 @@ exports.getMevaLeaderboard = onCall(async (request) => {
         return {
           uid: data.uid || docSnap.id,
           score: data.claimedMevaCount || 0,
-          leaderboardName: data.leaderboardName || generateLeaderboardName(),
+          leaderboardName: safeDisplayName(data.leaderboardName, data.displayName, generateLeaderboardName()),
           hasClaimedMeva: data.hasClaimedMeva === true,
         };
       })
@@ -779,11 +792,11 @@ exports.getMevaLeaderboard = onCall(async (request) => {
     return { type, weekKey, rows };
   }
 
-  if (type === "mostFed" || type === "mostFound" || type === "ownerBond") {
+  if (type === "mostFed" || type === "mostFound" || type === "ownerCare") {
     const orderField =
       type === "mostFed"
-        ? "visitorTapCount"
-        : type === "ownerBond"
+        ? "countedTapTotal"
+        : type === "ownerCare"
         ? "ownerTapCount"
         : "tapCount";
 
@@ -800,11 +813,12 @@ exports.getMevaLeaderboard = onCall(async (request) => {
           uid: docSnap.id,
           mevaId: docSnap.id,
           score: data[orderField] || 0,
-          leaderboardName:
-            data.nickname ||
-            data.realName ||
-            data.officialName ||
-            docSnap.id,
+          leaderboardName: safeDisplayName(
+            data.nickname,
+            data.realName,
+            data.officialName,
+            "Kibo"
+          ),
           isClaimed: data.isClaimed === true,
         };
       })
@@ -834,7 +848,7 @@ exports.getMevaLeaderboard = onCall(async (request) => {
       return {
         uid: data.uid || docSnap.id,
         score: data.score || 0,
-        leaderboardName: data.leaderboardName || generateLeaderboardName(),
+        leaderboardName: safeDisplayName(data.leaderboardName, data.displayName, generateLeaderboardName()),
         hasClaimedMeva: data.hasClaimedMeva === true,
       };
     })
