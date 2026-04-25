@@ -1,412 +1,411 @@
-MEVA MASTER DOC — CURRENT SOURCE OF TRUTH
-Core rules for this project
-Mobile-first always.
-Prioritize in this order: iPhone 14, Samsung S24 Ultra, Tablet, Desktop.
-Keep the visual style soft, minimal, premium, and centered.
-Do not redesign the brand direction unless explicitly asked.
-Keep code simple and beginner-friendly.
-Do not break imports.
-When changing files, preserve existing imports unless a real update is needed.
-Keep route handling simple unless React Router is explicitly requested later.
----
-Current app structure
-```text
-MEVA-REBUILD/
-  public/
-  src/
-    assets/
-    pages/
-      MevaLandingPage.jsx
-      MevaPublicPage.jsx
-    App.css
-    App.jsx
-    firebase.js
-    index.css
-    main.jsx
-  .env.local
-  .gitignore
-  eslint.config.js
-  index.html
-  package-lock.json
-  package.json
-  README.md
-  vercel.json
-  vite.config.js
-```
----
-What each file does
-`src/App.jsx`
-Main route switcher for the app.
-Current purpose:
-`/` → `MevaLandingPage`
-`/m` → `MevaPublicPage`
-`/m/test` and `/m/:id` → `MevaPublicPage`
-Important:
-This file must contain React code.
-Do not accidentally paste React code into `App.css`.
-Typical structure:
-```jsx
-import MevaLandingPage from "./pages/MevaLandingPage";
-import MevaPublicPage from "./pages/MevaPublicPage";
+# MEVA PROJECT MASTER DOC (UPDATED)
 
-export default function App() {
-  const rawPath = window.location.pathname;
-  const path =
-    rawPath.length > 1 && rawPath.endsWith("/")
-      ? rawPath.slice(0, -1)
-      : rawPath;
+---
 
-  if (path === "/m" || path.startsWith("/m/")) {
-    return <MevaPublicPage />;
-  }
+## CORE PRODUCT
 
-  return <MevaLandingPage />;
-}
-```
-`src/pages/MevaLandingPage.jsx`
-Soft launch / waitlist landing page.
-Current purpose:
-teaser page
-early access form
-brand intro
-waitlist signup flow
-Important:
-This is the marketing / intro page at `/`
-It should not contain Meva routing logic
-It should not import itself or `MevaPublicPage`
-`src/pages/MevaPublicPage.jsx`
-Main Meva app shell.
-Current purpose:
-handles `/m`
-handles `/m/test`
-handles `/m/P1K8XJ6Z` style routes
-reads from Firestore collection `mevas`
-shows loading state
-shows not found state
-shows placeholder public Meva content for now
-also acts as the Meva entry page when the route is exactly `/m`
-`src/firebase.js`
-Firebase app + Firestore setup.
-Current purpose:
-initialize Firebase
-export `db`
-Current structure should remain like this:
-```jsx
-import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+Meva is a tap-to-experience collectible platform.
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
-};
+A physical object (keychain/charm) opens a digital interactive Meva page via NFC or QR.
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+### Core loop:
 
-export default app;
-export { db };
-```
-`src/main.jsx`
-React app entry file.
-Typical structure:
-```jsx
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import "./index.css";
-import App from "./App.jsx";
+1. User taps/scans physical Meva
+2. Opens `/m/:mevaId`
+3. User interacts with Meva
+4. User can claim ownership
+5. Backend tracks activity securely
+6. Leaderboards + future systems use trusted backend data
 
-createRoot(document.getElementById("root")).render(
-  <StrictMode>
-    <App />
-  </StrictMode>
-);
-```
-`src/index.css`
-Global CSS / Tailwind base styling.
-`src/App.css`
-Should not contain React code.
-Keep minimal or empty if not needed.
-`vercel.json`
-Required so deep links work on Vercel.
-Current purpose:
-allow direct visits to `/m`
-allow direct visits to `/m/test`
-allow direct visits to `/m/:id`
-Structure:
-```json
-{
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
-}
-```
 ---
-Current route map
-Landing
-`/`
-Meva
-`/m`
-`/m/test`
-`/m/P1K8XJ6Z`
-`/m/<REAL_ID>`
----
-Current Firestore rules direction
-Current known rule pattern:
-`mevas/{mevaId}` is readable publicly
-writes are blocked for now
-Example rule direction:
-```jsx
-rules_version = '2';
 
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /mevas/{mevaId} {
-      allow read: if true;
-      allow write: if false;
-    }
+## CURRENT STATUS
 
-    match /earlyAccess/{entryId} {
-      allow create: if true;
-      allow read, update, delete: if false;
-    }
+### Stable
 
-    match /{document=**} {
-      allow read, write: if false;
-    }
-  }
-}
+* Mobile viewing works
+* Mobile claim works (CRITICAL)
+* Mobile unclaim works (CRITICAL)
+* Google sign-in works on mobile
+* Desktop viewing works
+* Desktop claim/unclaim intentionally disabled
+* Cloud Functions handle all protected actions
+* Tap tracking exists
+* Anti-bot tap protection exists
+* Leaderboards (All Time / Weekly / Most Visited)
+* Leaderboard name system exists
+* Meva nickname system exists
+* Waitlist system exists (backend secured)
+* Firebase App Check is implemented (reCAPTCHA v3)
+
+---
+
+## SECURITY & APP CHECK (CRITICAL)
+
+### App Check
+
+* Firebase App Check is ACTIVE
+* Uses **reCAPTCHA v3 (non-enterprise)**
+* Tokens auto-refresh enabled
+* Protects:
+
+  * Firestore
+  * Cloud Functions
+
+
+## RECAPTCHA CONFIG (FINAL)
+
+### Using:
+
+* Google Cloud reCAPTCHA v3 (score-based)
+
+
+### Domains:
+
+* mevacharms.com
+* [www.mevacharms.com](http://www.mevacharms.com)
+* mevacharm.com
+* [www.mevacharm.com](http://www.mevacharm.com)
+* meva-rebuild.vercel.app
+* localhost
+
+
+## ENV VARIABLES
+
+### Required (Vercel)
+
+```env
+VITE_RECAPTCHA_V3_SITE_KEY=your_site_key_here
 ```
 ---
-Current branding / UI direction
-Visual direction
-soft, premium, calm
-minimal clutter
-centered layout
-mobile first
-light blue page background that matches the landing page direction
-white / very pale blue card background
-purple CTA buttons in the same general family as the landing page CTA
-Current Meva styling direction
-page background should lean soft blue, not heavy purple
-card background should feel airy and slightly blue-tinted rather than pure white
-Kibo circle should stay clean with no muddy shadow
-logo is inside the card in the top-left area
-logo on mobile should be larger than earlier versions
-Current logo preference
-keep logo near the top-left area inside the card
-do not place it floating above the card
-do not overlap headline
-current adjustment preference was:
-larger on mobile
-a bit more top and left on mobile
-Current wording preference
-section title: `Open a Meva by ID`
-primary button under input: `Open Meva`
-test button: `Feed the Test Meva`
-Current navigation preference
-logo inside Meva pages should route to `/m`
-back buttons inside Meva pages should route to `/m`
-all Meva navigation should stay within the `/m` system
+
+## IMPORTANT RULE
+
+Do not redesign or break the UI unless explicitly asked. Should only be adding to or extending, not changing.
+
+Always:
+
+* preserve layout
+* preserve claim/unclaim
+* keep mobile-first
+* avoid overengineering
+* protect backend
+
 ---
-Current Meva asset URLs
-Kibo image
-```text
-https://firebasestorage.googleapis.com/v0/b/meva-clean.firebasestorage.app/o/mevas%2FKibo%2FKibo.png?alt=media&token=82c12f12-2989-49dc-ae73-59ee0577c3a8
+
+## FILE TREE
+
+```txt
+/
+├── functions/
+│   └── index.js
+│
+├── src/
+│   ├── firebase.js
+│   ├── main.jsx
+│   ├── App.jsx
+│   ├── index.css
+│   └── pages/
+│       ├── MevaLandingPage.jsx
+│       ├── MevaHubPage.jsx
+│       ├── MevaPublicPage.jsx
+│       └── MevaIdPage.jsx
 ```
-Meva logo
-```text
-https://firebasestorage.googleapis.com/v0/b/meva-clean.firebasestorage.app/o/brand%2FLogo.png?alt=media&token=dc0fef03-4c72-4a08-967e-0ffa9b55c39a
+
+---
+
+## FILE PURPOSES
+
+### /functions/index.js
+
+Backend (SECURITY CRITICAL)
+
+Handles:
+
+* claim/unclaim
+* tap tracking
+* anti-bot logic
+* leaderboard
+* nickname
+* waitlist submission
+
+---
+
+### /src/firebase.js
+
+Handles:
+
+* Firebase init
+* Auth
+* Firestore
+* Functions
+* App Check
+
+Must include:
+
+```js
+initializeAppCheck(app, {
+  provider: new ReCaptchaV3Provider(
+    import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY
+  ),
+  isTokenAutoRefreshEnabled: true,
+});
 ```
+
 ---
-Current MevaPublicPage responsibilities
-`MevaPublicPage.jsx` should currently do all of this:
-detect Meva ID from URL path
-support `/m` as the Meva entry page
-support `/m/test`
-support real Meva IDs
-validate real ID pattern
-load real documents from Firestore using:
-```jsx
-const mevaRef = doc(db, "mevas", mevaId);
-const mevaSnap = await getDoc(mevaRef);
-```
-show loading state
-show error state
-show not found state
-show placeholder / basic content for now
-allow opening Meva pages by entered ID from the `/m` screen
-Current page states
-root Meva entry page
-loading
-firestore error
-not found
-valid loaded Meva
-Current display fallback logic
-display `nickname (realName)` if both exist
-otherwise show nickname
-otherwise show realName
-otherwise show fallback name
+
+## CLAIM / UNCLAIM SYSTEM
+
+### Mobile (CRITICAL)
+
+* Works fully
+* Must NEVER break
+
+### Desktop
+
+* Disabled intentionally
+* Shows message instead
+
 ---
-Current imports that must stay correct
-`src/App.jsx`
-```jsx
-import MevaLandingPage from "./pages/MevaLandingPage";
-import MevaPublicPage from "./pages/MevaPublicPage";
-```
-`src/pages/MevaPublicPage.jsx`
-```jsx
-import { useEffect, useMemo, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "../firebase";
-```
-`src/main.jsx`
-```jsx
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import "./index.css";
-import App from "./App.jsx";
-```
-`src/firebase.js`
-```jsx
-import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-```
+
+## DESKTOP VS MOBILE RULE
+
+### Mobile:
+
+* Full functionality
+* Counts taps
+
+### Desktop:
+
+* View only
+* No claim/unclaim
+* No leaderboard tap contribution
+
+### REQUIRED UI (pending):
+
+> “Only phone/tablet taps count toward feeding and leaderboards.”
+
 ---
-Important mistakes to avoid
-1. Do not paste JSX into `App.css`
-React code belongs in `.jsx` files only.
-2. Do not break import paths
-Use exact file names:
-`./pages/MevaLandingPage`
-`./pages/MevaPublicPage`
-`../firebase`
-3. Do not rename files casually
-Only rename if the project is being intentionally reorganized.
-4. Do not remove `vercel.json`
-Without it, deep links on Vercel can 404.
-5. Do not make desktop drive layout decisions
-Phone-first always.
-6. Keep the Meva entry page and public page visually consistent
-Same general shell, spacing language, color family, and rounded card style.
-7. Do not add separate Meva entry routing outside `/m`
-The Meva system should stay unified under:
-`/m`
-`/m/test`
-`/m/<REAL_ID>`
+
+## BACKEND SECURITY RULES
+
+### NEVER allow frontend to write:
+
+* ownership
+* leaderboard
+* taps
+* waitlist
+* user identity
+
+ALL must go through Cloud Functions.
+
 ---
-How to preview locally
-Run:
-```bash
-npm run dev
-```
-Then open:
-```text
-http://localhost:5173/
-http://localhost:5173/m
-http://localhost:5173/m/test
-http://localhost:5173/m/P1K8XJ6Z
-```
+
+## WAITLIST SYSTEM
+
+### Flow:
+
+1. User submits form
+2. Calls `submitEarlyAccess`
+3. Backend:
+
+   * validates
+   * blocks duplicates
+   * rate limits
+   * stores data
+
 ---
-How to preview online
-After deploy:
-```text
-https://meva-rebuild.vercel.app/
-https://meva-rebuild.vercel.app/m
-https://meva-rebuild.vercel.app/m/test
-https://meva-rebuild.vercel.app/m/P1K8XJ6Z
-```
+
+## FIRESTORE COLLECTIONS
+
+### mevas
+
+* Meva data
+
+### mevaClaims
+
+* Ownership
+
+### users
+
+* Profiles + leaderboard identity
+
+### mevaEvents
+
+* Event logs
+
+### mevaTapGuards
+
+* Anti-bot
+
+### mevaLeaderboardAllTime
+
+### mevaLeaderboardWeekly
+
 ---
-Current status summary
-Working / established
-landing page exists
-Meva entry page exists at `/m`
-public Meva page exists
-simple path-based routing exists
-Vercel rewrite solution exists
-Firestore config exists
-Firestore reads are wired into `MevaPublicPage`
-branding direction is established
-logo placement direction is established
-test Meva route is established
-Still in progress / being polished
-exact final Meva button purple tone
-exact final logo size and top-left offset on mobile
-exact final card/background tone matching landing page perfectly
-real interactive Meva experience on `/m/test`
-upgraded real Meva page content beyond placeholder data
+
+### NEW: earlyAccess
+
+* email
+* name
+* createdAt
+
 ---
-What we need to do next
-Highest priority next step
-Upgrade `/m/test` into the real interactive test Meva page
-make it feel like the interactive mockup
-add feed / react / personality behavior
-keep the current shell and brand styling
-After that
-Upgrade the real public Meva page
-render actual Meva fields from Firestore
-add image support if stored in Firestore
-show real nickname / realName / owner state
-show any future public metadata cleanly
-Then
-Add the actual interaction layer
-tap/interact button behavior
-public-safe interaction tracking
-backend-controlled writes later
-Then
-Add stronger backend architecture
-Cloud Functions for protected writes
-remove sensitive client-side write paths
-secure ownership-related actions
-Then
-Build claim / rename / leaderboard systems
-claim flow
-rename cooldown
-owner vs visitor logic
-leaderboard expansion later
+
+### NEW: earlyAccessRateLimits
+
+* emailHash
+* lastSubmitAt
+
 ---
-Recommended near-term implementation order
-Final `/m/test` interaction layer
-Final public page shell polish
-Firestore field rendering on public page
-Public interaction write flow design
-Backend-protected Cloud Functions
-Claim system
-Event tracking / analytics
-Leaderboards
+
+### NEW: earlyAccessIpRateLimits
+
+* ipHash
+* lastSubmitAt
+
 ---
-Beginner-safe workflow notes
-When editing:
-save files before testing
-if styles do not seem updated, hard refresh browser
-if Vite acts stale, restart dev server
-if a deep route 404s online, verify `vercel.json` is still present
-When something breaks:
-check file extension is `.jsx`
-check imports first
-check if code accidentally went into `App.css`
-check browser console and terminal for exact line number
+
+## TAP TRACKING
+
+Events:
+
+* tap
+* feed
+* hold
+* drag
+* menu
+* claim/unclaim
+
+Backend decides valid taps.
+
 ---
-Git workflow preference
-Use grouped commits for each meaningful change.
-Typical pattern:
-```bash
-git add src/App.jsx src/pages/MevaPublicPage.jsx vercel.json
-git commit -m "Describe the change clearly"
-git push
-```
+
+## ANTI-BOT SYSTEM
+
+Checks:
+
+* device type
+* timing patterns
+* session validity
+
+Frontend animates ALL taps
+Backend decides what counts
+
 ---
-Current system summary
-The Meva app is now structured as one unified flow:
-`/` = landing page
-`/m` = Meva entry page
-`/m/test` = test Meva experience
-`/m/<REAL_ID>` = public Meva pages
-`MevaPublicPage.jsx` is now the single Meva app shell and should remain the central file for Meva route behavior unless the app is intentionally re-architected later.
+
+## LEADERBOARD SYSTEM
+
+Types:
+
+* All Time
+* Weekly
+
+Rules:
+
+* Only claimed users show
+* Fast load required
+* Backend stores names
+
+---
+
+## LEADERBOARD NAME SYSTEM
+
+Rules:
+
+* 3–12 chars
+* alphanumeric
+* cooldown (14 days)
+* one free change
+
+---
+
+## MEVA NICKNAME SYSTEM
+
+* Owner only
+* Stored on Meva
+* fallback: "Kibo"
+
+---
+
+## DESIGN RULES
+
+* minimal
+* emotional
+* soft
+* clean
+* mobile-first
+* no clutter
+
+---
+
+## MAIN PAGE RULES
+
+Must fit:
+
+* iPhone 14 screen
+* no scroll
+
+---
+
+## CURRENT ROADMAP
+
+### Immediate
+
+* verify UI
+* fix spacing
+* confirm claim/unclaim
+
+### Next
+
+* collection system
+* multi-meva screen
+* better drag
+* hold interactions
+
+### Later
+
+* cosmetics
+* themes
+* collabs
+* NFC unlock features
+
+---
+
+## DEV RULES
+
+Always:
+
+* protect backend
+* mobile first
+* simple code
+
+Never:
+
+* break claim/unclaim
+* move logic to frontend
+* redesign UI randomly
+
+
+## CLEAN CHECKPOINT SUMMARY
+
+You now have:
+
+* secure backend
+* App Check protection
+* working claim system
+* anti-bot logic
+* waitlist secured
+* leaderboards
+* mobile-first UX
+
+### MOST IMPORTANT
+
+* Do NOT break mobile claim/unclaim
+* Do NOT remove App Check
+* Do NOT move backend logic to frontend
+* Keep Meva minimal + emotional
+
+---
+
+END OF MASTER DOC

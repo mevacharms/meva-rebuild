@@ -7,7 +7,7 @@ initializeApp();
 const db = getFirestore();
 
 const CALLABLE_OPTIONS = {
-  enforceAppCheck: false,
+  enforceAppCheck: true,
 };
 
 function normalizeMevaId(value) {
@@ -333,7 +333,7 @@ exports.claimMeva = onCall(CALLABLE_OPTIONS, async (request) => {
       throw new HttpsError("not-found", "This Meva does not exist.");
     }
 
-    if (claimSnap.exists) {
+    if (claimSnap.exists || mevaSnap.data()?.isClaimed === true) {
       throw new HttpsError("already-exists", "This Meva is already claimed.");
     }
 
@@ -702,7 +702,7 @@ exports.logMevaInteraction = onCall(CALLABLE_OPTIONS, async (request) => {
             (val, i, arr) => i === 0 || Math.abs(val - arr[i - 1]) < 10
           );
 
-        const isExtremeSpam = lastTapMs && msSinceLastTap < 50;
+          const isExtremeSpam = lastTapMs && msSinceLastTap < 80;
 
         if (isTooConsistent || isExtremeSpam) {
           countBlockReason = isTooConsistent ? "bot_pattern" : "extreme_spam";
