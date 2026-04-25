@@ -4,7 +4,6 @@
     getRedirectResult,
     onAuthStateChanged,
     setPersistence,
-    signInWithPopup,
     signInWithRedirect,
     signOut,
   } from "firebase/auth";
@@ -678,20 +677,12 @@ setViewerState({
     const beginGoogleSignIn = async (pendingAction) => {
       try {
         savePendingAction(pendingAction, mevaId);
-    
-        const popupResult = await signInWithPopup(auth, googleProvider);
-        return { mode: "popup", user: popupResult.user };
-      } catch (popupErr) {
-        console.warn("Popup failed, trying redirect:", popupErr);
-    
-        try {
-          await signInWithRedirect(auth, googleProvider);
-          return { mode: "redirect", user: null };
-        } catch (redirectErr) {
-          console.error("Google sign-in failed:", redirectErr);
-          showNotice("Google sign-in failed", "Please try again.");
-          return { mode: "failed", user: null };
-        }
+        await signInWithRedirect(auth, googleProvider);
+        return { mode: "redirect", user: null };
+      } catch (err) {
+        console.error("Google sign-in failed:", err);
+        showNotice("Google sign-in failed", "Please try again.");
+        return { mode: "failed", user: null };
       }
     };
     
