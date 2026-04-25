@@ -307,7 +307,23 @@ const pendingActionRunningRef = useRef(false);
       if (pendingActionRunningRef.current) return;
     
       const pending = readPendingAction();
-      if (!pending || pending.mevaId !== mevaId || !auth.currentUser) return;
+
+if (!pending) {
+  setDebugError("No pending action.");
+  return;
+}
+
+if (pending.mevaId !== mevaId) {
+  setDebugError(`Wrong pending Meva: ${pending.mevaId} vs ${mevaId}`);
+  return;
+}
+
+if (!auth.currentUser) {
+  setDebugError("No current Google user.");
+  return;
+}
+
+setDebugError(`Running pending ${pending.action} for ${mevaId}`);
     
       try {
         pendingActionRunningRef.current = true;
@@ -481,6 +497,23 @@ if (typeId) {
       };
     }, [isTestMeva, mevaId]);
 
+    useEffect(() => {
+      if (!authReady || !user || loading || notFound) return;
+    
+      const pending = readPendingAction();
+    
+      if (!pending) {
+        setDebugError("Signed in, but no pending action found.");
+        return;
+      }
+    
+      if (pending.mevaId !== mevaId) {
+        setDebugError(`Pending Meva mismatch: ${pending.mevaId} vs ${mevaId}`);
+        return;
+      }
+    
+      runPendingAction();
+    }, [authReady, user, loading, notFound, mevaId]);
     useEffect(() => {
       let cancelled = false;
 
