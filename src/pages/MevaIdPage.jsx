@@ -302,7 +302,41 @@ const pendingActionRunningRef = useRef(false);
       () => httpsCallable(functions, "setMevaNickname"),
       []
     );
-
+    
+    const runPendingAction = async () => {
+      if (pendingActionRunningRef.current) return;
+    
+      const pending = readPendingAction();
+      if (!pending || pending.mevaId !== mevaId || !auth.currentUser) return;
+    
+      try {
+        pendingActionRunningRef.current = true;
+    
+        await auth.currentUser.getIdToken(true);
+        await syncUserProfile();
+    
+        if (pending.action === "claim") {
+          await claimMeva({ mevaId });
+          clearPendingAction();
+          await refreshCurrentMeva();
+          showNotice("Saved with Google", `${displayName} is now protected and saved to your account.`);
+        }
+    
+        if (pending.action === "unclaim") {
+          await unclaimMeva({ mevaId });
+          clearPendingAction();
+          await signOut(auth);
+          await refreshCurrentMeva();
+          showNotice("Unclaimed", `${displayName} is no longer saved to your Google account.`);
+        }
+      } catch (err) {
+        console.error("Pending action failed:", err);
+        setDebugError(err?.code || err?.message || "Pending action failed");
+      } finally {
+        pendingActionRunningRef.current = false;
+      }
+    };
+    
     useEffect(() => {
       let mounted = true;
 
@@ -675,40 +709,6 @@ setViewerState({
     const showNotice = (title, message) => {
       setNotice({ title, message });
       setPanel("notice");
-    };
-
-    const runPendingAction = async () => {
-      if (pendingActionRunningRef.current) return;
-    
-      const pending = readPendingAction();
-      if (!pending || pending.mevaId !== mevaId || !auth.currentUser) return;
-    
-      try {
-        pendingActionRunningRef.current = true;
-    
-        await auth.currentUser.getIdToken(true);
-        await syncUserProfile();
-    
-        if (pending.action === "claim") {
-          await claimMeva({ mevaId });
-          clearPendingAction();
-          await refreshCurrentMeva();
-          showNotice("Saved with Google", `${displayName} is now protected and saved to your account.`);
-        }
-    
-        if (pending.action === "unclaim") {
-          await unclaimMeva({ mevaId });
-          clearPendingAction();
-          await signOut(auth);
-          await refreshCurrentMeva();
-          showNotice("Unclaimed", `${displayName} is no longer saved to your Google account.`);
-        }
-      } catch (err) {
-        console.error("Pending action failed:", err);
-        setDebugError(err?.code || err?.message || "Pending action failed");
-      } finally {
-        pendingActionRunningRef.current = false;
-      }
     };
 
     const beginGoogleSignIn = async (pendingAction) => {
