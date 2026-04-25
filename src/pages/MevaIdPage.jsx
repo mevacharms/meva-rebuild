@@ -21,22 +21,6 @@
   const PENDING_ACTION_KEY = "meva_pending_action";
   const OFFLINE_QUEUE_KEY = "meva_offline_queue";
 
-  function getDeviceClaimKey(mevaId) {
-    return `meva_device_claim_${mevaId}`;
-  }
-
-  function isDeviceClaimed(mevaId) {
-    return localStorage.getItem(getDeviceClaimKey(mevaId)) === "true";
-  }
-
-  function setDeviceClaim(mevaId) {
-    localStorage.setItem(getDeviceClaimKey(mevaId), "true");
-  }
-
-  function removeDeviceClaim(mevaId) {
-    localStorage.removeItem(getDeviceClaimKey(mevaId));
-  }
-
   function savePendingAction(action, mevaId) {
     localStorage.setItem(
       PENDING_ACTION_KEY,
@@ -195,7 +179,6 @@ const [mevaTypeData, setMevaTypeData] = useState(null);
       isOwner: false,
       canClaim: false,
       canUnclaim: false,
-      isDeviceOwner: false,
     });
 
     const [actionLoading, setActionLoading] = useState(false);
@@ -449,16 +432,15 @@ if (typeId) {
           const result = await getMevaViewerState({ mevaId });
           if (cancelled) return;
 
-          const deviceOwner = isDeviceClaimed(mevaId);
+          const deviceOwner = false;
 
-  setViewerState({
-    isSignedIn: !!result.data?.isSignedIn,
-    isClaimed: !!result.data?.isClaimed,
-    isOwner: !!result.data?.isOwner,
-    canClaim: !!result.data?.canClaim,
-    canUnclaim: !!result.data?.canUnclaim,
-    isDeviceOwner: deviceOwner,
-  });
+          setViewerState({
+            isSignedIn: !!result.data?.isSignedIn,
+            isClaimed: !!result.data?.isClaimed,
+            isOwner: !!result.data?.isOwner,
+            canClaim: !!result.data?.canClaim,
+            canUnclaim: !!result.data?.canUnclaim,
+          });
         } catch (err) {
           if (cancelled) return;
           console.error("Viewer state error:", err);
@@ -515,23 +497,20 @@ if (typeId) {
         mevaData?.imageUrl ||
         KIBO_IMAGE_URL;
     const isMobileDevice = isMobileLike();
+    const isDesktop = !isMobileDevice;
     const primaryButtonLabel = viewerState.isClaimed ? "Unclaim Meva" : "Claim Meva";
 
     const ownershipTitle = viewerState.isOwner
-      ? "Saved with Google"
-      : viewerState.isDeviceOwner
-      ? "Saved on this device"
-      : viewerState.isClaimed
-      ? "Already claimed"
-      : "Not claimed yet";
+  ? "Saved with Google"
+  : viewerState.isClaimed
+  ? "Already claimed"
+  : "Not claimed yet";
 
-    const ownershipText = viewerState.isOwner
-      ? "This Meva is protected and follows your Google account."
-      : viewerState.isDeviceOwner
-      ? "This Meva is only saved on this phone/browser."
-      : viewerState.isClaimed
-      ? "This Meva belongs to another Google account."
-      : "Keep it on this device, or save it with Google.";
+  const ownershipText = viewerState.isOwner
+  ? "This Meva is protected and follows your Google account."
+  : viewerState.isClaimed
+  ? "This Meva belongs to another Google account."
+  : "Claim this Meva to save it to your account.";
 
     const getClientContext = async () => ({
       location: {
@@ -657,16 +636,15 @@ if (typeId) {
 
       const viewerResult = await getMevaViewerState({ mevaId });
 
-      const deviceOwner = isDeviceClaimed(mevaId);
+      const deviceOwner = false;
 
-  setViewerState({
-    isSignedIn: !!viewerResult.data?.isSignedIn,
-    isClaimed: !!viewerResult.data?.isClaimed,
-    isOwner: !!viewerResult.data?.isOwner,
-    canClaim: !!viewerResult.data?.canClaim,
-    canUnclaim: !!viewerResult.data?.canUnclaim,
-    isDeviceOwner: deviceOwner,
-  });
+      setViewerState({
+        isSignedIn: !!result.data?.isSignedIn,
+        isClaimed: !!result.data?.isClaimed,
+        isOwner: !!result.data?.isOwner,
+        canClaim: !!result.data?.canClaim,
+        canUnclaim: !!result.data?.canUnclaim,
+      });
     };
 
     const showNotice = (title, message) => {
@@ -698,37 +676,7 @@ if (typeId) {
         return { mode: "failed", user: null };
       }
     };
-    const handleDeviceClaim = () => {
-      setDeviceClaim(mevaId);
-
-      setViewerState((prev) => ({
-        ...prev,
-        isDeviceOwner: true,
-      }));
-
-      showNotice("Saved on this device", `${displayName} will stay here on this phone/browser.`);
-    };
-
-    const handleDeviceUnclaim = () => {
-      removeDeviceClaim(mevaId);
-
-      setViewerState((prev) => ({
-        ...prev,
-        isDeviceOwner: false,
-      }));
-
-      showNotice("Removed from this device", `${displayName} is no longer saved on this phone/browser.`);
-    };
-
-    const handleUpgradeDeviceClaim = async () => {
-      await handleClaim();
-
-      if (auth.currentUser) {
-        removeDeviceClaim(mevaId);
-        await refreshCurrentMeva();
-        showNotice("Saved with Google", `${displayName} is now protected and saved to your account.`);
-      }
-    };
+    
     const handleClaim = async () => {
       try {
         setActionLoading(true);
@@ -1167,6 +1115,11 @@ setMevaPos((prev) => ({
                   Tap, hold, or drag to interact
                 </p>
               </div>
+              {isDesktop && (
+  <div className="absolute bottom-[clamp(12px,2.5dvh,24px)] left-1/2 -translate-x-1/2 text-[11px] font-bold text-[#8A7CA8] opacity-70">
+    Taps only count on phone/tablet
+  </div>
+)}
 
               {isDebug ? (
                 <div className="mt-4 max-h-[160px] overflow-auto rounded-[18px] bg-[#EEF4FD] p-4 text-left text-[12px] leading-5 text-[#4D406D]">
@@ -1434,12 +1387,10 @@ setMevaPos((prev) => ({
                   </div>
                   <p className="shrink-0 rounded-full bg-white px-3 py-1 text-[12px] font-black text-[#6B5C96] shadow-sm">
                     {viewerState.isOwner
-                      ? "Google"
-                      : viewerState.isDeviceOwner
-                      ? "Device"
-                      : viewerState.isClaimed
-                      ? "Claimed"
-                      : "Open"}
+  ? "Google"
+  : viewerState.isClaimed
+  ? "Claimed"
+  : "Open"}
                   </p>
                 </div>
               </div>
@@ -1460,14 +1411,14 @@ setMevaPos((prev) => ({
                 <div className="mx-auto mt-4 h-[10px] max-w-[250px] overflow-hidden rounded-full bg-[#E7DFFF]">
                   <div
                     className={`h-full rounded-full bg-[#8D76F6] ${
-                      viewerState.isOwner || viewerState.isDeviceOwner
+                      viewerState.isOwner
                         ? "w-[18%]"
                         : "w-[4%]"
                     }`}
                   />
                 </div>
                 <p className="mt-3 text-[14px] font-bold leading-6 text-[#7D729B]">
-                  {viewerState.isOwner || viewerState.isDeviceOwner
+                  {viewerState.isOwner
                     ? "1 Meva saved. More collection features come later."
                     : "Save this Meva to start your collection."}
                 </p>
@@ -1542,17 +1493,11 @@ setMevaPos((prev) => ({
                     type="button"
                     disabled={actionLoading}
                     onClick={() => {
-                      if (!isMobileDevice) {
-                        showNotice("Open on phone", "Please open this Meva on your phone to claim or unclaim.");
-                        return;
-                      }
 
                       if (viewerState.isOwner) {
                         setMoreMode("unclaimConfirm");
                       } else if (viewerState.isClaimed) {
                         showNotice("Already claimed", "This Meva is saved to another Google account.");
-                      } else if (viewerState.isDeviceOwner) {
-                        handleUpgradeDeviceClaim();
                       } else {
                         handleClaim();
                       }
@@ -1565,20 +1510,8 @@ setMevaPos((prev) => ({
                       ? "Unclaim Google ownership"
                       : viewerState.isClaimed
                       ? "Already claimed"
-                      : viewerState.isDeviceOwner
-                      ? "Save with Google"
                       : "Claim with Google"}
                   </button>
-
-                  {!viewerState.isClaimed ? (
-                    <button
-                      type="button"
-                      onClick={viewerState.isDeviceOwner ? handleDeviceUnclaim : handleDeviceClaim}
-                      className="h-[46px] w-full rounded-[20px] bg-white text-[14px] font-black text-[#6B5C96] shadow-sm"
-                    >
-                      {viewerState.isDeviceOwner ? "Remove device claim" : "Keep on this device"}
-                    </button>
-                  ) : null}
 
                   <button
                     className="h-[46px] w-full rounded-[20px] bg-[#F8F6FD] text-[14px] font-black text-[#5A4D82]"
