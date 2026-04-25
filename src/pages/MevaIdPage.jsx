@@ -907,12 +907,12 @@
         <a
           href="/m"
           aria-label="Back to Meva"
-          className="absolute left-2 top-3 z-20 flex h-[72px] w-[72px] items-center justify-center"
+          className="absolute left-3 top-4 z-20 flex h-[54px] w-[54px] items-center justify-center"
         >
           <img
             src={MEVA_LOGO_URL}
             alt="Meva logo"
-            className="h-[82px] w-auto object-contain select-none pointer-events-none"
+            className="h-[96px] w-auto object-contain select-none pointer-events-none"
             draggable="false"
           />
         </a>
@@ -1061,7 +1061,7 @@
                 </div>
               </div>
 
-              <div className="mt-[92px] flex justify-center">
+              <div className="mt-[clamp(130px,17dvh,185px)] flex justify-center">
                 <div className="rounded-full bg-white/95 px-5 py-2 text-[15px] font-black text-[#5A4D82] shadow-sm">
                   {displayName}
                 </div>
@@ -1549,7 +1549,7 @@
                   onInput={(e) => {
                     e.currentTarget.value = e.currentTarget.value.toLowerCase();
                     if (unclaimButtonRef.current) {
-                      unclaimButtonRef.current.disabled = e.currentTarget.value !== "confirm" || actionLoading;
+                      unclaimButtonRef.current.classList.toggle("opacity-40", e.currentTarget.value !== "confirm" || actionLoading);
                     }
                   }}
                   placeholder="type confirm"
@@ -1569,9 +1569,11 @@
                   <button
                     ref={unclaimButtonRef}
                     type="button"
-                    disabled
-                    onClick={handleUnclaim}
-                    className="h-[48px] rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white disabled:opacity-40"
+                    onClick={() => {
+                      if (unclaimInputRef.current?.value !== "confirm") return;
+                      handleUnclaim();
+                    }}
+                    className="h-[48px] rounded-[18px] bg-gradient-to-r from-[#A894F0] via-[#8D76F6] to-[#7E66F4] text-[15px] font-black text-white opacity-40"
                   >
                     Unclaim
                   </button>
