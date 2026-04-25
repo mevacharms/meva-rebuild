@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
-import { db } from "../firebase";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "../firebase";
 
 export default function MevaLandingPage() {
   const [name, setName] = useState("");
@@ -29,11 +29,12 @@ export default function MevaLandingPage() {
       setIsSubmitting(true);
       setSubmitError("");
 
-      await setDoc(doc(db, "earlyAccess", trimmedEmail), {
+      const submitEarlyAccess = httpsCallable(functions, "submitEarlyAccess");
+
+      await submitEarlyAccess({
         name: trimmedName,
         email: trimmedEmail,
         source: "landing-page",
-        createdAt: serverTimestamp(),
       });
 
       setName("");
@@ -42,8 +43,10 @@ export default function MevaLandingPage() {
     } catch (error) {
       console.error("Error joining early access:", error);
 
-      if (error?.code === "permission-denied") {
+      if (error?.code === "functions/already-exists") {
         setSubmitError("This email is already on the list.");
+      } else if (error?.code === "functions/resource-exhausted") {
+        setSubmitError("Please wait a moment and try again.");
       } else {
         setSubmitError("Something went wrong. Please try again.");
       }

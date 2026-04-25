@@ -162,6 +162,66 @@ function generateNickname(realName = "Kibo") {
   const extra = extras[Math.floor(Math.random() * extras.length)];
   return `${realName}${extra}`.slice(0, 18);
 }
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase().slice(0, 120);
+}
+
+function assertValidEmail(email) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new HttpsError("invalid-argument", "Please enter a valid email.");
+  }
+}
+
+exports.submitEarlyAccess = onCall(async (request) => {
+  const name = sanitizeText(request.data?.name, 80);
+  const email = normalizeEmail(request.data?.email);
+  const source = sanitizeText(request.data?.source || "landing-page", 80);
+
+  if (!name || name.length < 1) {
+    throw new HttpsError("invalid-argument", "Please enter your name.");
+  }
+
+  assertValidEmail(email);
+
+  const emailKey = email.replace(/[.#$/[\]]/g, "_");
+  const entryRef = db.collection("earlyAccess").doc(emailKey);
+  const rateRef = db.collection("earlyAccessRateLimits").doc(emailKey);
+
+  await db.runTransaction(async (tx) => {
+    const [entrySnap, rateSnap] = await Promise.all([
+      tx.get(entryRef),
+      tx.get(rateRef),
+    ]);
+
+    if (entrySnap.exists) {
+      throw new HttpsError("already-exists", "This email is already on the list.");
+    }
+
+    const nowMs = Date.now();
+    const lastSubmitMs = rateSnap.exists ? rateSnap.data()?.lastSubmitMs || 0 : 0;
+
+    if (lastSubmitMs && nowMs - lastSubmitMs < 60 * 1000) {
+      throw new HttpsError("resource-exhausted", "Please wait a moment and try again.");
+    }
+
+    tx.set(entryRef, {
+      name,
+      email,
+      source,
+      createdAt: FieldValue.serverTimestamp(),
+      createdAtMs: nowMs,
+      userAgent: sanitizeText(request.rawRequest?.headers?.["user-agent"], 300),
+    });
+
+    tx.set(rateRef, {
+      email,
+      lastSubmitMs: nowMs,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  return { success: true };
+});
 
 async function createEvent({
   eventType,
